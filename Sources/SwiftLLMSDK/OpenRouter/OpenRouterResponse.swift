@@ -1,0 +1,71 @@
+import Foundation
+
+public class OpenRouterResponse: ModelResponse {
+    public var text: String?
+    public var responseTokens: Int?
+    public var promptTokens: Int?
+    public var role: String?
+
+    public init(
+        role: String = "assistant",
+        text: String? = "",
+        responseTokens: Int? = nil,
+        promptTokens: Int? = nil
+    ) {
+        self.text = text
+        self.responseTokens = responseTokens
+        self.promptTokens = promptTokens
+        self.role = role
+    }    
+}
+
+// MARK: - API Response Model
+class OpenRouterAPIResponse: Codable {
+    var id: String? 
+    var provider: String? 
+    var model: String?
+    var object: String?
+    var created: Int?
+    var systemFingerprint: String? 
+    var usage: OpenRouterUsage?
+    var choices: [OpenRouterChoice]?
+}
+
+class OpenRouterUsage: Codable {
+    var promptTokens: Int?
+    var completionTokens: Int?
+    var totalTokens: Int?
+}
+
+class OpenRouterChoice: Codable {
+    var finishReason: String?
+    var nativeFinishReason: String?
+    var index: Int?
+    var message: OpenRouterAPIMessage?
+}
+
+class OpenRouterAPIMessage: Codable {
+    var role: String? 
+    var content: String? 
+    var refusal: Bool?
+    var reasoning: String? 
+}
+
+extension OpenRouterAPIResponse {
+    public func toJSON() -> String {
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        let requestData = try! encoder.encode(self)
+        return String(data: requestData, encoding: .utf8)!
+    }
+
+    public func toOpenRouterResponse() -> OpenRouterResponse {
+        let result = choices?.first
+        return OpenRouterResponse(
+            role: result?.message?.role ?? "assistant",
+            text: result?.message?.content,
+            responseTokens: usage?.completionTokens,
+            promptTokens: usage?.promptTokens
+        )
+    }
+}

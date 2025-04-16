@@ -1,0 +1,29 @@
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# Xcode
+*.xcworkspace
+*.xcodeproj
+xcuserdata/
+DerivedData/
+*.xcuserstate
+
+# macOS
+.DS_Store
+
+# VSCode
+.vscode/
+*.code-workspace
+
+# Cursor
+.cursor/
+
+# General
+*.log
+*.tmp
+*.swp
+*.swo
+*.bak
+*.orig
+*.rej 

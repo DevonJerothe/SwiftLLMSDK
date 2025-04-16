@@ -7,7 +7,6 @@ protocol KoboldAPIBase: LanguageModelService {
 }
 
 public struct KoboldAPI: KoboldAPIBase {
-    public typealias ResponseType =  KoboldResponse
     
     public var urlSession: URLSession
     public var baseURL: String
@@ -36,7 +35,7 @@ public struct KoboldAPI: KoboldAPIBase {
         await getString(endpoint: "/api/v1/model")
     }
 
-    public func sendMessage(promptModel: RequestBodyBuilder) async -> Result<KoboldResponse, APIError> {
+    public func sendMessage(promptModel: RequestBodyBuilder) async -> Result<ModelResponse, APIError> {
         let koboldRequest = promptModel.buildKoboldBody()
         let koboldRequestData = koboldRequest.toJSON().data(using: .utf8)
 

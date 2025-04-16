@@ -8,7 +8,6 @@ public protocol OpenRouterBase: LanguageModelService {
 }
 
 public struct OpenRouterAPI: OpenRouterBase {
-    public typealias ResponseType = OpenRouterResponse
 
     public var urlSession: URLSession
     public var baseURL: String
@@ -30,7 +29,7 @@ public struct OpenRouterAPI: OpenRouterBase {
         self.apiKey = apiKey
     }
     
-    public func sendMessage(promptModel: RequestBodyBuilder) async -> Result<OpenRouterResponse, APIError> {
+    public func sendMessage(promptModel: RequestBodyBuilder) async -> Result<ModelResponse, APIError> {
         let openRouterRequest = promptModel.buildOpenRouterBody()
         let openRouterRequestData = openRouterRequest.toJSON().data(using: .utf8)
 

@@ -35,20 +35,20 @@ public class OpenRouterAPIResponse: Codable {
     var choices: [OpenRouterChoice]?
 }
 
-class OpenRouterUsage: Codable {
+public class OpenRouterUsage: Codable {
     var promptTokens: Int?
     var completionTokens: Int?
     var totalTokens: Int?
 }
 
-class OpenRouterChoice: Codable {
+public class OpenRouterChoice: Codable {
     var finishReason: String?
     var nativeFinishReason: String?
     var index: Int?
     var message: OpenRouterAPIMessage?
 }
 
-class OpenRouterAPIMessage: Codable {
+public class OpenRouterAPIMessage: Codable {
     var role: String? 
     var content: String? 
     var refusal: Bool?
@@ -76,11 +76,11 @@ extension OpenRouterAPIResponse {
 }
 
 // MARK: - OpenRouter API Key Response
-class OpenRouterAPIKeyResponse: Codable {
+public class OpenRouterAPIKeyResponse: Codable {
     var data: OpenRouterAPIKeyData?
 }
 
-class OpenRouterAPIKeyData: Codable {
+public class OpenRouterAPIKeyData: Codable {
     var label: String 
     var usage: Double
     var isFreeTier: Bool

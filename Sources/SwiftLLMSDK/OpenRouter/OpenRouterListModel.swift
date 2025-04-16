@@ -3,7 +3,7 @@ import Foundation
 public class OpenRouterModelList: Codable {
     let data: [OpenRouterModel]
 
-    init(data: [OpenRouterModel]) {
+    public init(data: [OpenRouterModel]) {
         self.data = data
     }
 }
@@ -31,7 +31,7 @@ public class OpenRouterModel: Codable {
         case perRequestLimits = "per_request_limits"
     }
 
-    init(
+    public init(
         id: String,
         name: String,
         created: Double,
@@ -67,7 +67,7 @@ public class Architecture: Codable {
         case tokenizer
     }
 
-    init(inputModalities: [String], outputModalities: [String], tokenizer: String, instructType: String? = nil) {
+    public init(inputModalities: [String], outputModalities: [String], tokenizer: String, instructType: String? = nil) {
         self.inputModalities = inputModalities
         self.outputModalities = outputModalities
         self.tokenizer = tokenizer
@@ -86,7 +86,7 @@ public class TopProvider: Codable {
         case maxCompletionTokens = "max_completion_tokens"
     }
 
-    init(isModerated: Bool, contextLength: Double? = nil, maxCompletionTokens: Double? = nil) {
+    public init(isModerated: Bool, contextLength: Double? = nil, maxCompletionTokens: Double? = nil) {
         self.isModerated = isModerated
         self.contextLength = contextLength
         self.maxCompletionTokens = maxCompletionTokens
@@ -114,7 +114,7 @@ public class Pricing: Codable {
         case internalReasoning = "internal_reasoning"
     }
 
-    init(
+    public init(
         prompt: String,
         completion: String,
         image: String,
@@ -142,7 +142,7 @@ public class PerRequestLimits: Codable {
         case key
     }
 
-    init(key: String) {
+    public init(key: String) {
         self.key = key
     }
 }

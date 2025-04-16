@@ -28,17 +28,17 @@ public class KoboldAPIResponse: Codable {
     var results: [ResultArray]
 }
 
-class ResultArray: Codable {
+public class ResultArray: Codable {
     var text: String?
     var promptTokens: Int?
     var completionTokens: Int?
 }
 
-struct IntResponse: Decodable {
+public struct IntResponse: Decodable {
     let value: Int
 }
 
-struct StringResponse: Decodable {
+public struct StringResponse: Decodable {
     let result: String
 }
 

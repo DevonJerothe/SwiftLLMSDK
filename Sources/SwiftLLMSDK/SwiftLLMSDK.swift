@@ -22,7 +22,7 @@ extension LanguageModelService {
         guard let baseURL = URL(string: baseURL + path) else {
             return .failure(.invalidURL)
         }
-        
+
         do {
             // Create the request
             var request = URLRequest(url: baseURL, timeoutInterval: timeoutInterval)

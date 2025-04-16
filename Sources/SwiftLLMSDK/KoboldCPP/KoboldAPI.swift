@@ -1,6 +1,6 @@
 import Foundation
 
-protocol KoboldAPIBase {
+public protocol KoboldAPIBase {
     func getModel() async -> Result<String, APIError>
     func getMaxLength() async -> Result<Int, APIError>
     func getVersion() async -> Result<String, APIError>

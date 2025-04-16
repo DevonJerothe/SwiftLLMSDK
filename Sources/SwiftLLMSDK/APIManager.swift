@@ -5,11 +5,11 @@ import Foundation
 public class APIManager<T: LanguageModelService> {
     private let api: T
 
-    init(forService api: T) {
+    public init(forService api: T) {
         self.api = api
     }
 
-    func sendMessage(promptModel: RequestBodyBuilder) async -> Result<T.ResponseType, APIError> {
+    public func sendMessage(promptModel: RequestBodyBuilder) async -> Result<T.ResponseType, APIError> {
         let result = await api.sendMessage(promptModel: promptModel)
 
         switch result {
@@ -22,7 +22,7 @@ public class APIManager<T: LanguageModelService> {
 }
 
 extension APIManager where T: OpenRouterBase {
-    func connect() async -> Result<String, APIError> {
+    public func connect() async -> Result<String, APIError> {
         guard let api = api as? OpenRouterAPI else {
             return .failure(.invalidService)
         }
@@ -32,7 +32,7 @@ extension APIManager where T: OpenRouterBase {
 }
 
 extension APIManager where T: KoboldAPIBase {
-    func connect() async -> Result<String, APIError> {
+    public func connect() async -> Result<String, APIError> {
         guard let api = api as? KoboldAPI else {
             return .failure(.invalidService)
         }

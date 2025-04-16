@@ -4,8 +4,6 @@
 //
 //  Created by devon jerothe on 3/18/25.
 //
-
-
 import Foundation
 
 public class CharacterCard: Codable {

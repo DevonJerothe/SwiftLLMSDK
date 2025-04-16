@@ -1,6 +1,8 @@
 import Foundation
 
 public class KoboldResponse: ModelResponse {
+    public var responseContent: KoboldAPIResponse
+
     public var text: String?
     public var responseTokens: Int?
     public var promptTokens: Int?
@@ -10,17 +12,19 @@ public class KoboldResponse: ModelResponse {
         role: String = "assistant",
         text: String? = "",
         responseTokens: Int? = nil,
-        promptTokens: Int? = nil
+        promptTokens: Int? = nil, 
+        responseContent: KoboldAPIResponse
     ) {
         self.text = text
         self.responseTokens = responseTokens
         self.promptTokens = promptTokens
         self.role = role
+        self.responseContent = responseContent
     }
 }
 
 // MARK: - API Response Model
-class KoboldAPIResponse: Codable {
+public class KoboldAPIResponse: Codable {
     var results: [ResultArray]
 }
 
@@ -53,7 +57,8 @@ extension KoboldAPIResponse {
             role: "assistant",
             text: result?.text,
             responseTokens: result?.completionTokens,
-            promptTokens: result?.promptTokens
+            promptTokens: result?.promptTokens,
+            responseContent: self
         )
     }
 }

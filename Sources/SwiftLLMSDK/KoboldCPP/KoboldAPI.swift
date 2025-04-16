@@ -1,12 +1,13 @@
 import Foundation
 
-protocol KoboldAPIBase: LanguageModelService {
+protocol KoboldAPIBase {
     func getModel() async -> Result<String, APIError>
     func getMaxLength() async -> Result<Int, APIError>
     func getVersion() async -> Result<String, APIError>
 }
 
-public struct KoboldAPI: KoboldAPIBase {
+public struct KoboldAPI: LanguageModelService, KoboldAPIBase {
+    public typealias ResponseType = KoboldResponse
     
     public var urlSession: URLSession
     public var baseURL: String
@@ -35,7 +36,7 @@ public struct KoboldAPI: KoboldAPIBase {
         await getString(endpoint: "/api/v1/model")
     }
 
-    public func sendMessage(promptModel: RequestBodyBuilder) async -> Result<ModelResponse, APIError> {
+    public func sendMessage(promptModel: RequestBodyBuilder) async -> Result<KoboldResponse, APIError> {
         let koboldRequest = promptModel.buildKoboldBody()
         let koboldRequestData = koboldRequest.toJSON().data(using: .utf8)
 

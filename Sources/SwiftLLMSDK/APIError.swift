@@ -7,6 +7,7 @@ public enum APIError: Error, LocalizedError {
     case decodingError
     case timeout
     case serverError(code: Int)
+    case invalidService
 
     public var errorDescription: String? {
         switch self {
@@ -22,6 +23,8 @@ public enum APIError: Error, LocalizedError {
             return "Timeout"
         case .serverError(code: let code):
             return "Server error (\(code))"
+        case .invalidService:
+            return "Invalid service type"
         }
     }
 }

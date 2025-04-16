@@ -1,26 +1,25 @@
 import Foundation
 
-public protocol OpenRouterBase: LanguageModelService {
-    var selectedModel: String { get }
-    //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
-    // func getAvailableModels() async -> Result<[String], APIError>
-    // func getCredits() async -> Result<Int, APIError>
+public protocol OpenRouterBase {
+    var selectedModel: String? { get }
+    func getAvailableModels() async -> Result<[OpenRouterModel], APIError>
 }
 
-public struct OpenRouterAPI: OpenRouterBase {
+public struct OpenRouterAPI: LanguageModelService, OpenRouterBase {
+    public typealias ResponseType = OpenRouterResponse
 
     public var urlSession: URLSession
     public var baseURL: String
     public var timeoutInterval: TimeInterval
 
-    public var selectedModel: String
+    public var selectedModel: String?
     public var apiKey: String?
 
     public init(
         urlSession: URLSession = URLSession.shared, 
         timeoutInterval: TimeInterval = 60.0, 
-        selectedModel: String,
-        apiKey: String
+        selectedModel: String? = nil,
+        apiKey: String? = nil
     ) {
         self.urlSession = urlSession
         self.baseURL = "https://openrouter.ai/api/v1"
@@ -29,7 +28,7 @@ public struct OpenRouterAPI: OpenRouterBase {
         self.apiKey = apiKey
     }
     
-    public func sendMessage(promptModel: RequestBodyBuilder) async -> Result<ModelResponse, APIError> {
+    public func sendMessage(promptModel: RequestBodyBuilder) async -> Result<OpenRouterResponse, APIError> {
         let openRouterRequest = promptModel.buildOpenRouterBody()
         let openRouterRequestData = openRouterRequest.toJSON().data(using: .utf8)
 
@@ -41,6 +40,21 @@ public struct OpenRouterAPI: OpenRouterBase {
         case .failure(let error):
             return .failure(error)
         }
+    }
+
+    public func checkAPIKey() async -> Result<String, APIError> {
+        let result = await sendRequest(for: OpenRouterAPIKeyResponse.self, path: "/key", method: "GET")
+        
+        switch result {
+        case .success(let response):
+            if let label = response.data?.label {
+                return .success(label)
+            } else {
+                return .failure(.invalidResponse)
+            }
+        case .failure(let error):
+            return .failure(error)
+        } 
     }
 
     public func getAvailableModels() async -> Result<[OpenRouterModel], APIError> {

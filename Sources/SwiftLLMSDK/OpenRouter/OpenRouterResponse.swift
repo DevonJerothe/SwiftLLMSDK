@@ -1,6 +1,8 @@
 import Foundation
 
 public class OpenRouterResponse: ModelResponse {
+    public var responseContent: OpenRouterAPIResponse
+
     public var text: String?
     public var responseTokens: Int?
     public var promptTokens: Int?
@@ -10,17 +12,19 @@ public class OpenRouterResponse: ModelResponse {
         role: String = "assistant",
         text: String? = "",
         responseTokens: Int? = nil,
-        promptTokens: Int? = nil
+        promptTokens: Int? = nil,
+        responseContent: OpenRouterAPIResponse
     ) {
         self.text = text
         self.responseTokens = responseTokens
         self.promptTokens = promptTokens
         self.role = role
+        self.responseContent = responseContent
     }    
 }
 
 // MARK: - API Response Model
-class OpenRouterAPIResponse: Codable {
+public class OpenRouterAPIResponse: Codable {
     var id: String? 
     var provider: String? 
     var model: String?
@@ -65,7 +69,22 @@ extension OpenRouterAPIResponse {
             role: result?.message?.role ?? "assistant",
             text: result?.message?.content,
             responseTokens: usage?.completionTokens,
-            promptTokens: usage?.promptTokens
+            promptTokens: usage?.promptTokens,
+            responseContent: self
         )
     }
+}
+
+// MARK: - OpenRouter API Key Response
+class OpenRouterAPIKeyResponse: Codable {
+    var data: OpenRouterAPIKeyData?
+}
+
+class OpenRouterAPIKeyData: Codable {
+    var label: String 
+    var usage: Double
+    var isFreeTier: Bool
+    var isProvisioningKey: Bool
+    var limit: Double?
+    var limitRemaining: Double? 
 }

@@ -1,13 +1,14 @@
 import Foundation
 
 public protocol LanguageModelService {
+    associatedtype ResponseType: ModelResponse
 
     var urlSession: URLSession { get}
     var baseURL: String { get }
     var timeoutInterval: TimeInterval { get }
     var apiKey: String? { get}
 
-    func sendMessage(promptModel: RequestBodyBuilder) async -> Result<ModelResponse, APIError>
+    func sendMessage(promptModel: RequestBodyBuilder) async -> Result<ResponseType, APIError>
 }
 
 extension LanguageModelService {
@@ -27,6 +28,7 @@ extension LanguageModelService {
             var request = URLRequest(url: baseURL, timeoutInterval: timeoutInterval)
             request.httpMethod = method
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue("Jax AI", forHTTPHeaderField: "X-Title")
 
             // Set the API key if available
             if let apiKey {

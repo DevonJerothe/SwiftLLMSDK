@@ -7,7 +7,7 @@ public protocol KoboldAPIBase {
 }
 
 public struct KoboldAPI: LanguageModelService, KoboldAPIBase {
-    public typealias ResponseType = KoboldResponse
+    // public typealias ResponseType = KoboldResponse
     
     public var urlSession: URLSession
     public var baseURL: String
@@ -36,7 +36,7 @@ public struct KoboldAPI: LanguageModelService, KoboldAPIBase {
         await getString(endpoint: "/api/v1/model")
     }
 
-    public func sendMessage(promptModel: RequestBodyBuilder) async -> Result<KoboldResponse, APIError> {
+    public func sendMessage(promptModel: RequestBodyBuilder) async -> Result<ModelResponse, APIError> {
         let koboldRequest = promptModel.buildKoboldBody()
         let koboldRequestData = koboldRequest.toJSON().data(using: .utf8)
 
@@ -44,7 +44,7 @@ public struct KoboldAPI: LanguageModelService, KoboldAPIBase {
 
         switch result {
         case .success(let response):
-            return .success(response.toKoboldResponse())
+            return .success(response.toModelResponse())
         case .failure(let error):
             return .failure(error)
         }

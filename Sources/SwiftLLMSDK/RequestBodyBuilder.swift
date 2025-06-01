@@ -51,6 +51,7 @@ public class RequestBodyBuilder {
         selectedModel: String = "openai/gpt-4o-mini",
         messages: [RequestBodyMessages] = [],
         memory: String? = nil,
+        prompt: String? = nil,
         maxContextLength: Int = 4096,
         maxLength: Int = 240,
         temperature: Double = 0.75,
@@ -76,6 +77,7 @@ public class RequestBodyBuilder {
         self.selectedModel = selectedModel
         self.messages = messages
         self.memory = memory
+        self.prompt = prompt
         self.maxContextLength = maxContextLength
         self.maxLength = maxLength
         self.temperature = temperature

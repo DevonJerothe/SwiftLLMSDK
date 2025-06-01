@@ -6,7 +6,7 @@ public protocol OpenRouterBase {
 }
 
 public struct OpenRouterAPI: LanguageModelService, OpenRouterBase {
-    public typealias ResponseType = OpenRouterResponse
+    // public typealias ResponseType = OpenRouterResponse
 
     public var urlSession: URLSession
     public var baseURL: String
@@ -28,7 +28,7 @@ public struct OpenRouterAPI: LanguageModelService, OpenRouterBase {
         self.apiKey = apiKey
     }
     
-    public func sendMessage(promptModel: RequestBodyBuilder) async -> Result<OpenRouterResponse, APIError> {
+    public func sendMessage(promptModel: RequestBodyBuilder) async -> Result<ModelResponse, APIError> {
         let openRouterRequest = promptModel.buildOpenRouterBody()
         let openRouterRequestData = openRouterRequest.toJSON().data(using: .utf8)
 
@@ -36,12 +36,13 @@ public struct OpenRouterAPI: LanguageModelService, OpenRouterBase {
 
         switch result {
         case .success(let response):
-            return .success(response.toOpenRouterResponse())
+            return .success(response.toModelResponse())
         case .failure(let error):
             return .failure(error)
         }
     }
 
+    // TODO: Update this to return the actual Key info. May be useful for monitoring usage ect. 
     public func checkAPIKey() async -> Result<String, APIError> {
         let result = await sendRequest(for: OpenRouterAPIKeyResponse.self, path: "/key", method: "GET")
         

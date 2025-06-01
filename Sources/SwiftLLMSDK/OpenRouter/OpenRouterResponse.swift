@@ -1,6 +1,6 @@
 import Foundation
 
-public class OpenRouterResponse: ModelResponse {
+public class OpenRouterResponse {
     public var responseContent: OpenRouterAPIResponse
 
     public var text: String?
@@ -71,6 +71,16 @@ extension OpenRouterAPIResponse {
             responseTokens: usage?.completionTokens,
             promptTokens: usage?.promptTokens,
             responseContent: self
+        )
+    }
+
+    public func toModelResponse() -> ModelResponse {
+        return ModelResponse(
+            role: choices?.first?.message?.role ?? "assistant",
+            text: choices?.first?.message?.content,
+            responseTokens: usage?.completionTokens,
+            promptTokens: usage?.promptTokens,
+            rawResponse: self
         )
     }
 }

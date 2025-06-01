@@ -9,7 +9,7 @@ public class APIManager<T: LanguageModelService> {
         self.api = api
     }
 
-    public func sendMessage(promptModel: RequestBodyBuilder) async -> Result<T.ResponseType, APIError> {
+    public func sendMessage(promptModel: RequestBodyBuilder) async -> Result<ModelResponse, APIError> {
         let result = await api.sendMessage(promptModel: promptModel)
 
         switch result {
@@ -21,6 +21,7 @@ public class APIManager<T: LanguageModelService> {
     }
 }
 
+// MARK: - OpenRouter Functions
 extension APIManager where T: OpenRouterBase {
     public func connect() async -> Result<String, APIError> {
         guard let api = api as? OpenRouterAPI else {
@@ -29,8 +30,17 @@ extension APIManager where T: OpenRouterBase {
 
         return await api.checkAPIKey()
     }
+
+    public func getAvailableModels() async -> Result<[OpenRouterModel], APIError> {
+        guard let api = api as? OpenRouterAPI else {
+            return .failure(.invalidService)
+        }
+
+        return await api.getAvailableModels()
+    }
 }
 
+// MARK: - Kobold Functions
 extension APIManager where T: KoboldAPIBase {
     public func connect() async -> Result<String, APIError> {
         guard let api = api as? KoboldAPI else {
@@ -41,14 +51,37 @@ extension APIManager where T: KoboldAPIBase {
     }
 }
 
-/// Protocol for our responses. Again this has an associated type.. we may not need it now that we are using a generic APIManger and service level PAT 
-/// for now this makes sure that if the app needs it, we have the raw API response available. 
-public protocol ModelResponse {
-    associatedtype ResponseContent: Codable
-
+public protocol ResponseModel {
     var role: String? { get }
     var text: String? { get }
     var responseTokens: Int? { get }
     var promptTokens: Int? { get }
-    var responseContent: ResponseContent { get }
+}
+
+public struct ModelResponse: ResponseModel {
+    public var role: String?
+    public var text: String?
+    public var responseTokens: Int?
+    public var promptTokens: Int?
+    public var rawResponse: Codable
+    
+    public init<T: Codable>(
+        role: String? = "assistant",
+        text: String? = nil,
+        responseTokens: Int? = nil,
+        promptTokens: Int? = nil,
+        rawResponse: T
+    ) {
+        self.role = role
+        self.text = text
+        self.responseTokens = responseTokens
+        self.promptTokens = promptTokens
+        self.rawResponse = rawResponse
+    }
+    
+    /// Attempts to cast the rawResponse back to its original type
+    /// - Returns: The original response type if casting succeeds, nil otherwise
+    public func getRawResponse<T: Codable>() -> T? {
+        return rawResponse as? T
+    }
 }

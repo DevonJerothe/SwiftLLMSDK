@@ -1,14 +1,14 @@
 import Foundation
 
 public protocol LanguageModelService {
-    associatedtype ResponseType: ModelResponse
+    // associatedtype ResponseType: ModelResponse
 
     var urlSession: URLSession { get}
     var baseURL: String { get }
     var timeoutInterval: TimeInterval { get }
     var apiKey: String? { get}
 
-    func sendMessage(promptModel: RequestBodyBuilder) async -> Result<ResponseType, APIError>
+    func sendMessage(promptModel: RequestBodyBuilder) async -> Result<ModelResponse, APIError>
 }
 
 extension LanguageModelService {

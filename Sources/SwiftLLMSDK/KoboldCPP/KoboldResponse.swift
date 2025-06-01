@@ -1,6 +1,6 @@
 import Foundation
 
-public class KoboldResponse: ModelResponse {
+public class KoboldResponse {
     public var responseContent: KoboldAPIResponse
 
     public var text: String?
@@ -59,6 +59,16 @@ extension KoboldAPIResponse {
             responseTokens: result?.completionTokens,
             promptTokens: result?.promptTokens,
             responseContent: self
+        )
+    }
+
+    func toModelResponse() -> ModelResponse {
+        return ModelResponse(
+            role: "assistant",
+            text: results.first?.text,
+            responseTokens: results.first?.completionTokens,
+            promptTokens: results.first?.promptTokens,
+            rawResponse: self
         )
     }
 }

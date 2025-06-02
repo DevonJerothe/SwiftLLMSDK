@@ -31,7 +31,13 @@ public struct ChubImporter: CharacterImporterService {
 
         // Example URL: "https://chub.ai/characters/Anonymous/aweseomeCard"
         // Extract the path after "characters/"
+        // Check if URL matches expected patterns
+        let validDomains = ["chub.ai", "characterhub.org"]
         let urlComponents = url.pathComponents
+        guard let host = url.host, validDomains.contains(host), url.pathComponents.contains("characters") else {
+            return .failure(.unsupportedURLImport)
+        }
+
         let charactersIndex = urlComponents.firstIndex(of: "characters")
 
         // Combine the components after "characters/" to form the fullPath

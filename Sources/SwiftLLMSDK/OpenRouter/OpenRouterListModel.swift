@@ -1,7 +1,7 @@
 import Foundation 
 
 public class OpenRouterModelList: Codable {
-    let data: [OpenRouterModel]
+    public let data: [OpenRouterModel]
 
     public init(data: [OpenRouterModel]) {
         self.data = data
@@ -9,65 +9,82 @@ public class OpenRouterModelList: Codable {
 }
 
 public class OpenRouterModel: Codable {
-    let id: String
-    let name: String
-    let created: Double
-    let description: String
-    let architecture: Architecture
-    let topProvider: TopProvider
-    let pricing: Pricing
-    let contextLength: Double?
-    let perRequestLimits: PerRequestLimits?
+    public let id: String
+    public let huggingFaceId: String?
+    public let name: String
+    public let created: Double
+    public let description: String
+    public let contextLength: Int?
+    public let architecture: Architecture
+    public let pricing: Pricing
+    public let topProvider: TopProvider
+    public let perRequestLimits: PerRequestLimits?
+    public let supportedParameters: [String]?
 
     enum CodingKeys: String, CodingKey {
         case id
+        case huggingFaceId = "hugging_face_id"
         case name
         case created
         case description
-        case architecture
-        case topProvider = "top_provider"
-        case pricing
         case contextLength = "context_length"
+        case architecture
+        case pricing
+        case topProvider = "top_provider"
         case perRequestLimits = "per_request_limits"
+        case supportedParameters = "supported_parameters"
     }
 
     public init(
         id: String,
+        huggingFaceId: String? = nil,
         name: String,
         created: Double,
         description: String,
+        contextLength: Int? = nil,
         architecture: Architecture,
-        topProvider: TopProvider,
         pricing: Pricing,
-        contextLength: Double? = nil,
-        perRequestLimits: PerRequestLimits? = nil
+        topProvider: TopProvider,
+        perRequestLimits: PerRequestLimits? = nil,
+        supportedParameters: [String]? = nil
     ) {
         self.id = id
+        self.huggingFaceId = huggingFaceId
         self.name = name
         self.created = created
         self.description = description
-        self.architecture = architecture
-        self.topProvider = topProvider
-        self.pricing = pricing
         self.contextLength = contextLength
+        self.architecture = architecture
+        self.pricing = pricing
+        self.topProvider = topProvider
         self.perRequestLimits = perRequestLimits
+        self.supportedParameters = supportedParameters
     }
 }
 
 public class Architecture: Codable {
-    let inputModalities: [String]
-    let outputModalities: [String]
-    let tokenizer: String
-    let instructType: String?
+    public let modality: String?
+    public let inputModalities: [String]
+    public let outputModalities: [String]
+    public let tokenizer: String
+    public let instructType: String?
 
     enum CodingKeys: String, CodingKey {
+        case modality
         case inputModalities = "input_modalities"
         case outputModalities = "output_modalities"
-        case instructType = "instruct_type"
         case tokenizer
+        case instructType = "instruct_type"
     }
 
-    public init(inputModalities: [String], outputModalities: [String], tokenizer: String, instructType: String? = nil) {
+    public init(
+        modality: String? = nil,
+        inputModalities: [String],
+        outputModalities: [String],
+        tokenizer: String,
+        instructType: String? = nil
+    ) {
+        self.modality = modality
         self.inputModalities = inputModalities
         self.outputModalities = outputModalities
         self.tokenizer = tokenizer
@@ -76,73 +93,66 @@ public class Architecture: Codable {
 }
 
 public class TopProvider: Codable {
-    let isModerated: Bool 
-    let contextLength: Double?
-    let maxCompletionTokens: Double?
+    public let contextLength: Int?
+    public let maxCompletionTokens: Int?
+    public let isModerated: Bool 
 
     enum CodingKeys: String, CodingKey {
-        case isModerated = "is_moderated"
         case contextLength = "context_length"
         case maxCompletionTokens = "max_completion_tokens"
+        case isModerated = "is_moderated"
     }
 
-    public init(isModerated: Bool, contextLength: Double? = nil, maxCompletionTokens: Double? = nil) {
-        self.isModerated = isModerated
+    public init(
+        contextLength: Int? = nil,
+        maxCompletionTokens: Int? = nil,
+        isModerated: Bool
+    ) {
         self.contextLength = contextLength
         self.maxCompletionTokens = maxCompletionTokens
+        self.isModerated = isModerated
     }
 }
 
 public class Pricing: Codable {
-    let prompt: String 
-    let completion: String
-    let image: String
-    let request: String 
-    let inputCacheRead: String 
-    let inputChacheWrite: String 
-    let webSearch: String
-    let internalReasoning: String
+    public let prompt: String? 
+    public let completion: String?
+    public let request: String? 
+    public let image: String?
+    public let webSearch: String?
+    public let internalReasoning: String?
 
     enum CodingKeys: String, CodingKey {
         case prompt
         case completion
-        case image
         case request
-        case inputCacheRead = "input_cache_read"
-        case inputChacheWrite = "input_cache_write"
+        case image
         case webSearch = "web_search"
         case internalReasoning = "internal_reasoning"
     }
 
     public init(
-        prompt: String,
-        completion: String,
-        image: String,
-        request: String,
-        inputCacheRead: String,
-        inputChacheWrite: String,
-        webSearch: String,
-        internalReasoning: String
+        prompt: String? = nil,
+        completion: String? = nil,
+        request: String? = nil,
+        image: String? = nil,
+        webSearch: String? = nil,
+        internalReasoning: String? = nil
     ) {
         self.prompt = prompt
         self.completion = completion
-        self.image = image
         self.request = request
-        self.inputCacheRead = inputCacheRead
-        self.inputChacheWrite = inputChacheWrite
+        self.image = image
         self.webSearch = webSearch
         self.internalReasoning = internalReasoning
     }
 }
 
 public class PerRequestLimits: Codable {
-    let key: String 
-
-    enum CodingKeys: String, CodingKey {
-        case key
-    }
-
-    public init(key: String) {
-        self.key = key
+    // This can be null in the JSON, so we'll make it a simple optional type
+    // If you need specific structure, adjust based on actual non-null examples
+    
+    public init() {
+        // Empty init for when it's null
     }
 }

@@ -97,4 +97,20 @@ public class OpenRouterAPIKeyData: Codable {
     var isProvisioningKey: Bool
     var limit: Double?
     var limitRemaining: Double? 
+    var rateLimit: OpenRouterRateLimit?
+    
+    enum CodingKeys: String, CodingKey {
+        case label
+        case usage
+        case isFreeTier = "is_free_tier"
+        case isProvisioningKey = "is_provisioning_key"
+        case limit
+        case limitRemaining = "limit_remaining"
+        case rateLimit = "rate_limit"
+    }
+}
+
+public class OpenRouterRateLimit: Codable {
+    var requests: Int
+    var interval: String
 }

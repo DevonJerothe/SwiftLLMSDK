@@ -55,7 +55,9 @@ extension LanguageModelService {
             
             // Decode the response
             let decoder = JSONDecoder()
-            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            // TODO: Make sure all models are manually using coding keys
+            // decoder.keyDecodingStrategy = .convertFromSnakeCase
+
             
             do {
                 let decodedResponse = try decoder.decode(T.self, from: data)

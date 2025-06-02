@@ -1,5 +1,11 @@
 import Foundation
 
+public enum OpenRouterReasoningEffort: String, Codable {
+    case low = "low"
+    case medium = "medium"
+    case high = "high"
+}
+
 public class OpenRouterPromptModel: Codable {
     public var model: String
     public var messages: [OpenRouterMessage]? 
@@ -15,6 +21,7 @@ public class OpenRouterPromptModel: Codable {
     public var presencePenalty: Double?
     public var frequencyPenalty: Double?
     public var seed: Int?
+    public var reasoning: OpenRouterReasoning?
 
     public init(
         model: String,
@@ -30,7 +37,9 @@ public class OpenRouterPromptModel: Codable {
         stream: Bool? = nil,
         presencePenalty: Double? = nil,
         frequencyPenalty: Double? = nil,
-        seed: Int? = nil
+        seed: Int? = nil,
+        excludeReasoning: Bool? = true, 
+        reasoningEffort: OpenRouterReasoningEffort? = .medium
     ) {
         self.model = model
         self.messages = messages
@@ -46,6 +55,28 @@ public class OpenRouterPromptModel: Codable {
         self.presencePenalty = presencePenalty
         self.frequencyPenalty = frequencyPenalty
         self.seed = seed
+
+        // Reasoning
+        self.reasoning = OpenRouterReasoning(
+            effort: reasoningEffort,
+            exclude: excludeReasoning
+        )
+    }
+}
+
+public struct OpenRouterReasoning: Codable {
+    public var effort: OpenRouterReasoningEffort? 
+    public var maxTokens: Int? 
+    public var exclude: Bool?
+
+    public init(
+        effort: OpenRouterReasoningEffort? = .medium,
+        maxTokens: Int? = nil,
+        exclude: Bool? = nil
+    ) {
+        self.effort = effort
+        self.maxTokens = maxTokens
+        self.exclude = exclude
     }
 }
 

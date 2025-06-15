@@ -26,8 +26,8 @@ public struct ChubImporter: CharacterImporterService {
         CharacterCard, APIError
     > {
 
-        let downloadURL = URL(
-            string: "https://api.chub.ai/api/characters/download")!
+//        let downloadURL = URL(
+//            string: "https://api.chub.ai/api/characters/download")!
 
         // Example URL: "https://chub.ai/characters/Anonymous/aweseomeCard"
         // Extract the path after "characters/"
@@ -50,19 +50,9 @@ public struct ChubImporter: CharacterImporterService {
             throw PNGMetadataError.invalidURL
         }
 
+        let downloadURL = URL(string: "https://avatars.charhub.io/avatars/\(fullPath)/chara_card_v2.png")!
         var request = URLRequest(url: downloadURL)
-        request.httpMethod = "POST"
-        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        let requestBody: [String: String] = [
-            "format": "tavern",
-            "fullPath": fullPath,
-            "version": "main",
-        ]
-
-        let requestJsonData = try JSONSerialization.data(
-            withJSONObject: requestBody)
-        request.httpBody = requestJsonData
+        request.httpMethod = "GET"
 
         let (data, response) = try await urlSession.data(for: request)
 

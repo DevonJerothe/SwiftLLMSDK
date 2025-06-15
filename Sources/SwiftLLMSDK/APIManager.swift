@@ -1,3 +1,11 @@
+//
+//  APIManager.swift
+//  SwiftLLMSDK
+//
+//  Copyright (c) 2025 Devon Jerothe
+//  Licensed under MIT License
+//
+
 import Foundation
 
 /// manager class to handle API calls to different services. 

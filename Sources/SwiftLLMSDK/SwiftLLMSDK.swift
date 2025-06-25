@@ -28,7 +28,8 @@ extension LanguageModelService {
             var request = URLRequest(url: baseURL, timeoutInterval: timeoutInterval)
             request.httpMethod = method
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.setValue("Jax AI", forHTTPHeaderField: "X-Title")
+            request.setValue("JAX AI", forHTTPHeaderField: "X-Title")
+            request.setValue("https://jax-ai-com.l.ink/", forHTTPHeaderField: "HTTP-Referer")
 
             // Set the API key if available
             if let apiKey {

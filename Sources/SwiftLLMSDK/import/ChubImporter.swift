@@ -22,12 +22,8 @@ public struct ChubImporter: CharacterImporterService {
         self.urlSession = urlSession
     }
 
-    public func getCardViaURL(_ url: URL) async throws -> Result<
-        CharacterCard, APIError
-    > {
-
-//        let downloadURL = URL(
-//            string: "https://api.chub.ai/api/characters/download")!
+    public func getCardViaURL(_ url: URL) async throws -> Result<CharacterCard, APIError>
+    {
 
         // Example URL: "https://chub.ai/characters/Anonymous/aweseomeCard"
         // Extract the path after "characters/"

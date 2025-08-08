@@ -14,7 +14,7 @@ public struct KoboldAPI: LanguageModelService, KoboldAPIBase {
     public var timeoutInterval: TimeInterval
     public var apiKey: String? = nil
 
-    public init(urlSession: URLSession = URLSession.shared, host: String, port: Int, timeoutInterval: TimeInterval = 60.0) {
+    public init(urlSession: URLSession = URLSession.shared, host: String, port: Int, timeoutInterval: TimeInterval = 120.0) {
         self.urlSession = urlSession
         self.baseURL = "http://\(host):\(port)"
         self.timeoutInterval = timeoutInterval

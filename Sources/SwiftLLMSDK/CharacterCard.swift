@@ -6,6 +6,26 @@
 //
 import Foundation
 
+public class ChubCard: Codable {
+    public var node: ChubCardNode? 
+}
+
+public class ChubCardNode: Codable {
+    public var name: String?
+    public var createdAt: String?
+    public var nTokens: Int? 
+    public var tagline: String? 
+    public var avatar: URL?
+
+    public enum CodingKeys: String, CodingKey {
+        case name = "name"
+        case createdAt = "createdAt"
+        case nTokens = "nTokens"
+        case tagline = "tagline"
+        case avatar = "max_res_url"
+    }
+}
+
 public class CharacterCard: Codable {
     public var spec: String?
     public var spec_version: String?
@@ -13,6 +33,8 @@ public class CharacterCard: Codable {
     
     /// We want to pass the downloaded image data so that we can present the img on the view
     public var pngData: Data?
+    public var cardDescription: String? 
+    public var totalTokens: Int? 
 }
 
 public class CharacterCardData: Codable {

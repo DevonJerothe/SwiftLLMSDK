@@ -24,7 +24,6 @@ public struct ChubImporter: CharacterImporterService {
 
     public func getCardViaURL(_ url: URL) async throws -> Result<CharacterCard, APIError>
     {
-
         // Example URL: "https://chub.ai/characters/Anonymous/aweseomeCard"
         // Extract the path after "characters/"
         // Check if URL matches expected patterns
@@ -46,30 +45,29 @@ public struct ChubImporter: CharacterImporterService {
             throw PNGMetadataError.invalidURL
         }
 
-        let downloadURL = URL(string: "https://avatars.charhub.io/avatars/\(fullPath)/chara_card_v2.png")!
-        var request = URLRequest(url: downloadURL)
-        request.httpMethod = "GET"
+        let downloadURL = URL(string: "https://gateway.chub.ai/api/characters/\(fullPath)")!
+        let data = try await getData(url: downloadURL)
 
-        let (data, response) = try await urlSession.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            return .failure(.invalidResponse)
-        }
-
-        if !(200...299).contains(httpResponse.statusCode) {
-            return .failure(.serverError(code: httpResponse.statusCode))
-        }
-
-        // Parse the png data prior to saving as PNG.
+        // Pull the Chub AI Info and then parse the png data prior to saving as PNG.
         // PNG is saved in CgBI format on Apple devices. This breaks standard chunk data extract.
         // Can prob be fixed, but I spent to much time trying to do it. This works fine.
         do {
-            let characterCard = try getCharData(data: data)
-            // inject png image link since the avatar field is pretty much always "none"
-            // EX: https://avatars.charhub.io/avatars/characters/Anonymous/aweseomeCard/chara_card_v2.png
-            characterCard.data?.avatar = "https://avatars.charhub.io/avatars/\(fullPath)/chara_card_v2.png"
+
+            let chubCard = try JSONDecoder().decode(ChubCard.self, from: data)
+            // Download the PNG data from the chub info
+            guard let pngURL = chubCard.node?.avatar else {
+                throw APIError.invalidResponse
+            }
+
+            let pngData = try await getData(url: pngURL)
+            let characterCard = try getCharData(data: pngData)
+            // inject card info into the returned character card. This info is not in the png data.
+            characterCard.data?.avatar = pngURL.absoluteString
+            characterCard.cardDescription = chubCard.node?.tagline
+            characterCard.totalTokens = chubCard.node?.nTokens
+
             // Also add downloaded PNG data to model so we can skip using async image via URL
-            characterCard.pngData = data
+            characterCard.pngData = pngData
             return .success(characterCard)
         } catch (let error) {
             throw error
@@ -78,6 +76,23 @@ public struct ChubImporter: CharacterImporterService {
 }
 
 extension ChubImporter {
+
+    private func getData(url: URL) async throws -> Data {
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+
+        let (data, response) = try await urlSession.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+
+        if !(200...299).contains(httpResponse.statusCode) {
+            throw APIError.serverError(code: httpResponse.statusCode)
+        }
+
+        return data
+    }
 
     /**
      * Reads Character metadata from a PNG image buffer.

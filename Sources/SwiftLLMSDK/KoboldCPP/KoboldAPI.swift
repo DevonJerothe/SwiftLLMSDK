@@ -49,4 +49,24 @@ public struct KoboldAPI: LanguageModelService, KoboldAPIBase {
             return .failure(error)
         }
     }
+
+    // Overload: send using provider-specific builder
+    public func sendMessage(builder: KoboldRequestBuilder) async -> Result<ModelResponse, APIError> {
+        let koboldRequest = builder.build()
+        let koboldRequestData = koboldRequest.toJSON().data(using: .utf8)
+
+        let result = await sendRequest(
+            for: KoboldAPIResponse.self,
+            path: "/api/v1/generate",
+            method: "POST",
+            requestBody: koboldRequestData
+        )
+
+        switch result {
+        case .success(let response):
+            return .success(response.toModelResponse())
+        case .failure(let error):
+            return .failure(error)
+        }
+    }
 }

@@ -85,6 +85,38 @@ extension OpenRouterAPIResponse {
     }
 }
 
+// MARK: - Streaming (SSE) Chunk Models
+public class OpenRouterStreamChunk: Codable, @unchecked Sendable {
+    public var id: String?
+    public var provider: String?
+    public var model: String?
+    public var object: String?
+    public var created: Int?
+    public var choices: [OpenRouterStreamChoice]?
+    public var usage: OpenRouterUsage?
+}
+
+public class OpenRouterStreamChoice: Codable, @unchecked Sendable {
+    public var index: Int?
+    public var delta: OpenRouterStreamDelta?
+    public var finishReason: String?
+    public var nativeFinishReason: String?
+}
+
+public class OpenRouterStreamDelta: Codable, @unchecked Sendable {
+    public var role: String?
+    public var content: String?
+    public var reasoning: String?
+    public var reasoningDetails: [OpenRouterReasoningDetail]?
+}
+
+public class OpenRouterReasoningDetail: Codable, @unchecked Sendable {
+    public var type: String?
+    public var text: String?
+    public var format: String?
+    public var index: Int?
+}
+
 // MARK: - OpenRouter API Key Response
 public class OpenRouterAPIKeyResponse: Codable {
     var data: OpenRouterAPIKeyData?

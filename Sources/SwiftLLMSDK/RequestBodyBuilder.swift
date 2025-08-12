@@ -1,17 +1,16 @@
 import Foundation
 
 public enum OpenRouterMessageRole: String, Codable {
-    case system = "system" // this would be the system prompt
+    case system = "system"
     case developer = "developer"
     case user = "user"
-    case assistant = "assistant" // this would be the prompt
+    case assistant = "assistant"
     case tool = "tool"
 }
 
-/// A base model for building the request body for the selected API. 
-/// TODO: We should improve the initialization of this class to use a builder pattern so that 
-/// seperation of concerns is maintained. If we know we are building for Kobold we should dont care 
-/// about the OpenRouter properties and vice versa. 
+/// RequestBodyBuilder centralizes prompt parameters for multiple providers
+/// (e.g., OpenRouter chat and KoboldCPP text generation). Use the provider-
+/// specific convenience initializers to populate only the relevant fields.
 public class RequestBodyBuilder {
     // Character Card Info
     // This is used to set up the system prompt when using chat completion, otherwise its all added to the memory
@@ -19,12 +18,12 @@ public class RequestBodyBuilder {
     public var characterPersonality: String? 
     public var characterScenario: String? 
 
-    // OpenRouter - Chat Completion
+    // OpenRouter - chat completion
     public var selectedModel: String
     public var frequencyPen: Double?
     public var presencePen: Double?
 
-    // Kobold 
+    // Kobold
     public var typical: Int? 
     public var memory: String? 
     public var trimStop: Bool?
@@ -46,6 +45,21 @@ public class RequestBodyBuilder {
     public var topK: Double?
     public var maxLength: Int?
     public var repatitionPen: Double?
+
+    // Correctly spelled synonyms (non-breaking) for repetition* values
+    // Prefer these in new call sites; they forward to existing properties.
+    public var repetitionPenalty: Double? {
+        get { repatitionPen }
+        set { repatitionPen = newValue }
+    }
+    public var repetitionRange: Int? {
+        get { repatitionRange }
+        set { repatitionRange = newValue }
+    }
+    public var repetitionSlope: Double? {
+        get { repatitionSlope }
+        set { repatitionSlope = newValue }
+    }
 
     public init(
         selectedModel: String = "openai/gpt-4o-mini",
@@ -101,6 +115,108 @@ public class RequestBodyBuilder {
         self.characterScenario = characterScenario
     }
 
+    // MARK: - Provider-specific convenience initializers
+
+    /// OpenRouter-focused initializer that sets only OpenRouter-relevant fields.
+    /// Kobold-specific fields are left nil/unused.
+    public convenience init(
+        forOpenRouterModel model: String,
+        messages: [RequestBodyMessages] = [],
+        temperature: Double = 0.75,
+        topP: Double = 0.92,
+        minP: Double = 0,
+        topA: Double = 0.92,
+        topK: Double = 100,
+        maxTokens: Int = 240,
+        repetitionPenalty: Double = 1.07,
+        frequencyPenalty: Double = 0,
+        presencePenalty: Double = 0,
+        stop: [String] = ["\nUser:", "\nAssistant:"],
+        systemPromptTemplate: String? = nil,
+        characterDescription: String? = nil,
+        characterPersonality: String? = nil,
+        characterScenario: String? = nil
+    ) {
+        self.init(
+            selectedModel: model,
+            messages: messages,
+            memory: nil,
+            prompt: nil,
+            maxContextLength: 4096,
+            maxLength: maxTokens,
+            temperature: temperature,
+            topP: topP,
+            minP: minP,
+            topA: topA,
+            topK: topK,
+            stopSequence: stop,
+            trimStop: true,
+            samplerOrder: [6, 0, 1, 3, 4, 2, 5],
+            frequencyPen: frequencyPenalty,
+            presencePen: presencePenalty,
+            repatitionRange: 360,
+            repatitionSlope: 0.7,
+            tfs: 1,
+            repatitionPen: repetitionPenalty,
+            typical: 1,
+            promptTemplate: systemPromptTemplate,
+            characterDescription: characterDescription,
+            characterPersonality: characterPersonality,
+            characterScenario: characterScenario
+        )
+    }
+
+    /// Kobold-focused initializer that sets only Kobold-relevant fields.
+    /// OpenRouter-specific fields are populated but unused by Kobold.
+    public convenience init(
+        forKoboldWithPrompt prompt: String,
+        memory: String? = nil,
+        maxContextLength: Int = 4096,
+        maxLength: Int = 240,
+        temperature: Double = 0.75,
+        tfs: Int = 1,
+        topA: Double = 0.92,
+        topK: Double = 100,
+        topP: Double = 0.92,
+        minP: Double = 0,
+        typical: Int = 1,
+        repetitionPenalty: Double = 1.07,
+        repetitionRange: Int = 360,
+        repetitionSlope: Double = 0.7,
+        stopSequence: [String] = ["\nUser:", "\nBot:"],
+        trimStop: Bool = true,
+        samplerOrder: [Int] = [6, 0, 1, 3, 4, 2, 5],
+        promptTemplate: String? = nil
+    ) {
+        self.init(
+            selectedModel: "",
+            messages: [],
+            memory: memory,
+            prompt: prompt,
+            maxContextLength: maxContextLength,
+            maxLength: maxLength,
+            temperature: temperature,
+            topP: topP,
+            minP: minP,
+            topA: topA,
+            topK: topK,
+            stopSequence: stopSequence,
+            trimStop: trimStop,
+            samplerOrder: samplerOrder,
+            frequencyPen: nil ?? 0,
+            presencePen: nil ?? 0,
+            repatitionRange: repetitionRange,
+            repatitionSlope: repetitionSlope,
+            tfs: tfs,
+            repatitionPen: repetitionPenalty,
+            typical: typical,
+            promptTemplate: promptTemplate,
+            characterDescription: nil,
+            characterPersonality: nil,
+            characterScenario: nil
+        )
+    }
+
     public func buildOpenRouterBody() -> OpenRouterPromptModel {
         // build system messages from our character card info
         var systemMessages: [OpenRouterMessage] = []
@@ -136,6 +252,7 @@ public class RequestBodyBuilder {
             topK: self.topK,
             maxTokens: self.maxLength,
             repetitionPenalty: self.repatitionPen,
+            presencePenalty: self.presencePen,
             frequencyPenalty: self.frequencyPen
         )
         return openRouterModel

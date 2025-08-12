@@ -14,11 +14,13 @@ A unified Swift package for connecting to various Large Language Model (LLM) bac
 ## Supported Providers
 
 ### OpenRouter
+
 - **Purpose**: Access to multiple LLM models through a single API
 - **Features**: Model listing, API key validation, chat completions
 - **Authentication**: API key required
 
 ### KoboldCPP
+
 - **Purpose**: Local LLM inference server
 - **Features**: Direct HTTP connection to local instances
 - **Authentication**: No API key required (local connection)
@@ -71,15 +73,15 @@ case .failure(let error):
     print("Connection failed: \(error)")
 }
 
-// Send a message
-let requestBuilder = RequestBodyBuilder(
-    selectedModel: "openai/gpt-4",
+// Send a message (builder-based API)
+let requestBuilder = OpenRouterRequestBuilder(
+    model: "openai/gpt-4",
     messages: [
         RequestBodyMessages(role: .user, message: "Hello, how are you?")
     ]
 )
 
-let response = await apiManager.sendMessage(promptModel: requestBuilder)
+let response = await apiManager.sendMessage(builder: requestBuilder)
 switch response {
 case .success(let modelResponse):
     print("Response: \(modelResponse.text ?? "No response")")
@@ -87,6 +89,52 @@ case .failure(let error):
     print("Error: \(error)")
 }
 ```
+
+### Streaming with OpenRouter
+
+```swift
+import SwiftLLMSDK
+import SwiftUI
+
+let openRouterAPI = OpenRouterAPI(
+    selectedModel: "openai/gpt-4o-mini",
+    apiKey: "your-api-key-here"
+)
+let apiManager = APIManager(forService: openRouterAPI)
+
+let builder = OpenRouterRequestBuilder(
+    model: "openai/gpt-4o-mini",
+    messages: [
+        RequestBodyMessages(role: .user, message: "Stream this response?")
+    ],
+    stream: true
+)
+
+// SwiftUI example
+struct ChatView: View {
+    @State private var assistantText = ""
+
+    var body: some View {
+        ScrollView {
+            Text(assistantText)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding()
+        }
+        .task {
+            for await result in apiManager.streamMessage(builder: builder) {
+                switch result {
+                case .success(let model):
+                    await MainActor.run { assistantText = model.text ?? "" }
+                case .failure(let error):
+                    print("stream error: \(error)")
+                }
+            }
+        }
+    }
+}
+```
+
+NOTE: Streaming with koboldCPP uses the same manager method, simply pass the correct request builder.
 
 ### Basic KoboldCPP Usage
 
@@ -111,14 +159,14 @@ case .failure(let error):
     print("Connection failed: \(error)")
 }
 
-// Send a prompt
-let requestBuilder = RequestBodyBuilder(
+// Send a prompt (builder-based API)
+let requestBuilder = KoboldRequestBuilder(
     prompt: "Once upon a time",
     maxLength: 100,
     temperature: 0.8
 )
 
-let response = await apiManager.sendMessage(promptModel: requestBuilder)
+let response = await apiManager.sendMessage(builder: requestBuilder)
 switch response {
 case .success(let modelResponse):
     print("Generated text: \(modelResponse.text ?? "No response")")
@@ -152,17 +200,18 @@ if let koboldAPIResponse: KoboldAPIResponse = modelResponse.getRawResponse() {
 import SwiftLLMSDK
 
 // Set up character information
-let requestBuilder = RequestBodyBuilder(
-    selectedModel: "openai/gpt-4",
+let requestBuilder = OpenRouterRequestBuilder(
+    model: "openai/gpt-4",
     messages: [
         RequestBodyMessages(role: .user, message: "Hello there!")
     ],
+    systemPromptTemplate: nil,
     characterDescription: "A friendly AI assistant who loves to help with coding questions.",
     characterPersonality: "Enthusiastic, patient, and knowledgeable about programming.",
     characterScenario: "You are helping a developer learn Swift programming."
 )
 
-let response = await apiManager.sendMessage(promptModel: requestBuilder)
+let response = await apiManager.sendMessage(builder: requestBuilder)
 ```
 
 ### Using Character Cards with KoboldCPP
@@ -171,7 +220,7 @@ let response = await apiManager.sendMessage(promptModel: requestBuilder)
 import SwiftLLMSDK
 
 // For KoboldCPP, character info goes into memory and prompt
-let requestBuilder = RequestBodyBuilder(
+let requestBuilder = KoboldRequestBuilder(
     prompt: "User: Hello there!\nAssistant:",
     memory: "You are a friendly AI assistant who loves to help with coding questions. You are enthusiastic, patient, and knowledgeable about programming.",
     maxLength: 150,
@@ -179,7 +228,7 @@ let requestBuilder = RequestBodyBuilder(
     stopSequence: ["\nUser:", "\nAssistant:"]
 )
 
-let response = await apiManager.sendMessage(promptModel: requestBuilder)
+let response = await apiManager.sendMessage(builder: requestBuilder)
 ```
 
 ## ChubAI Character Import
@@ -242,27 +291,26 @@ case .failure(let error):
 ### Advanced Parameter Configuration
 
 ```swift
-let requestBuilder = RequestBodyBuilder(
-    selectedModel: "anthropic/claude-3-haiku",
+let requestBuilder = OpenRouterRequestBuilder(
+    model: "anthropic/claude-3-haiku",
     messages: [
         RequestBodyMessages(role: .system, message: "You are a helpful assistant."),
         RequestBodyMessages(role: .user, message: "Explain quantum computing")
     ],
-    maxContextLength: 8192,
-    maxLength: 500,
+    maxTokens: 500,
     temperature: 0.7,
     topP: 0.9,
     topK: 40,
-    stopSequence: ["\n\nHuman:", "\n\nAssistant:"],
-    frequencyPen: 0.1,
-    presencePen: 0.1
+    stop: ["\n\nHuman:", "\n\nAssistant:"],
+    frequencyPenalty: 0.1,
+    presencePenalty: 0.1
 )
 ```
 
 ### Error Handling
 
 ```swift
-let response = await apiManager.sendMessage(promptModel: requestBuilder)
+let response = await apiManager.sendMessage(builder: requestBuilder)
 switch response {
 case .success(let modelResponse):
     print("Success!")
@@ -295,33 +343,39 @@ case .failure(let error):
 ### Core Classes
 
 #### `APIManager<T: LanguageModelService>`
+
 Generic manager for handling API calls to different LLM services.
 
 **Methods:**
-- `sendMessage(promptModel: RequestBodyBuilder) async -> Result<ModelResponse, APIError>`
+
+- `sendMessage(builder: OpenRouterRequestBuilder) async -> Result<ModelResponse, APIError>`
+- `sendMessage(builder: KoboldRequestBuilder) async -> Result<ModelResponse, APIError>`
+- `streamMessage(builder: OpenRouterRequestBuilder) -> AsyncStream<Result<ModelResponse, APIError>>`
+- `streamMessage(builder: KoboldRequestBuilder) -> AsyncStream<Result<ModelResponse, APIError>>`
 - `connect() async -> Result<String, APIError>` (OpenRouter/Kobold specific)
 - `getAvailableModels() async -> Result<[OpenRouterModel], APIError>` (OpenRouter only)
 
-#### `RequestBodyBuilder`
-Builder class for constructing requests with support for both OpenRouter and KoboldCPP parameters.
+#### Request Builders
 
-**Key Properties:**
-- `selectedModel: String` - Model identifier (OpenRouter)
-- `messages: [RequestBodyMessages]` - Chat messages (OpenRouter)
-- `prompt: String?` - Direct prompt text (KoboldCPP)
-- `memory: String?` - System/character context (KoboldCPP)
-- `temperature: Double?` - Sampling temperature
-- `maxLength: Int?` - Maximum response length
-- Character card properties: `characterDescription`, `characterPersonality`, `characterScenario`
+- `OpenRouterRequestBuilder`: Build chat-completion requests for OpenRouter.
+  - Fields include `model`, `messages`, `stop`, `temperature`, `topP`, `minP`, `topA`, `topK`, `maxTokens`, `repetitionPenalty`, `frequencyPenalty`, `presencePenalty`, `stream`, and optional system/character fields.
+- `KoboldRequestBuilder`: Build text-generation requests for KoboldCPP.
+  - Fields include `prompt`, `memory`, `maxContextLength`, `maxLength`, `temperature`, `tfs`, `topA`, `topK`, `topP`, `minP`, `typical`, `repetitionPenalty`, `repetitionRange`, `repetitionSlope`, `stopSequence`, `trimStop`, `samplerOrder`, `promptTemplate`.
+
+Compatibility: The legacy `RequestBodyBuilder` remains available but new code should prefer provider-specific builders.
 
 #### `ModelResponse`
+
 Unified response structure containing:
+
 - `text: String?` - Generated text response
 - `role: String?` - Response role (usually "assistant")
 - `responseTokens: Int?` - Tokens used in response
 - `promptTokens: Int?` - Tokens used in prompt
+- `streaming`: Bool? - If the response is currently streaming data
 - `rawResponse: Codable` - Original API response
 
+Note: Streaming uses `AsyncStream<Result<ModelResponse, APIError>>`. Each emission contains the accumulated `text` so far; the last emission is the final content.
 
 ## Contributing
 

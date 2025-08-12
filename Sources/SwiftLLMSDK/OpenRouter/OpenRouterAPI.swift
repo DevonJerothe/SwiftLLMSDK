@@ -6,7 +6,6 @@ public protocol OpenRouterBase {
 }
 
 public struct OpenRouterAPI: LanguageModelService, OpenRouterBase {
-    // public typealias ResponseType = OpenRouterResponse
 
     public var urlSession: URLSession
     public var baseURL: String
@@ -40,6 +39,41 @@ public struct OpenRouterAPI: LanguageModelService, OpenRouterBase {
         case .failure(let error):
             return .failure(error)
         }
+    }
+
+    // Overload: send using provider-specific builder
+    public func sendMessage(builder: OpenRouterRequestBuilder) async -> Result<ModelResponse, APIError> {
+        let openRouterRequest = builder.build()
+        let openRouterRequestData = openRouterRequest.toJSON().data(using: .utf8)
+
+        let result = await sendRequest(
+            for: OpenRouterAPIResponse.self,
+            path: "/chat/completions",
+            method: "POST",
+            requestBody: openRouterRequestData
+        )
+
+        switch result {
+        case .success(let response):
+            return .success(response.toModelResponse())
+        case .failure(let error):
+            return .failure(error)
+        }
+    }
+
+    // MARK: - Streaming
+    // Returns an AsyncStream emitting partial ModelResponse updates and a final value.
+    public func streamMessage(builder: OpenRouterRequestBuilder) -> AsyncStream<Result<ModelResponse, APIError>> {
+        var requestBuilder = builder
+        requestBuilder.stream = true
+        let requestModel = requestBuilder.build()
+
+        return sendStreamedRequest(
+            forAPI: OpenRouterAPI.self,
+            path: "/chat/completions",
+            method: "POST",
+            requestBody: requestModel.toJSON().data(using: .utf8)
+        )
     }
 
     // TODO: Update this to return the actual Key info. May be useful for monitoring usage ect. 

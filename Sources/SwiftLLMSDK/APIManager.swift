@@ -16,17 +16,6 @@ public class APIManager<T: LanguageModelService> {
     public init(forService api: T) {
         self.api = api
     }
-
-    public func sendMessage(promptModel: RequestBodyBuilder) async -> Result<ModelResponse, APIError> {
-        let result = await api.sendMessage(promptModel: promptModel)
-
-        switch result {
-        case .success(let response):
-            return .success(response)
-        case .failure(let error):
-            return .failure(error)
-        }
-    }
 }
 
 // MARK: - OpenRouter Functions
@@ -37,6 +26,23 @@ extension APIManager where T: OpenRouterBase {
         }
 
         return await api.checkAPIKey()
+    }
+
+    public func sendMessage(builder: OpenRouterRequestBuilder) async -> Result<ModelResponse, APIError> {
+        guard let api = api as? OpenRouterAPI else {
+            return .failure(.invalidService)
+        }
+        return await api.sendMessage(builder: builder)
+    }
+
+    public func streamMessage(builder: OpenRouterRequestBuilder) -> AsyncStream<Result<ModelResponse, APIError>> {
+        guard let api = api as? OpenRouterAPI else {
+            return AsyncStream { continuation in
+                continuation.yield(.failure(.invalidService))
+                continuation.finish()
+            }
+        }
+        return api.streamMessage(builder: builder)
     }
 
     public func getAvailableModels() async -> Result<[OpenRouterModel], APIError> {
@@ -57,6 +63,23 @@ extension APIManager where T: KoboldAPIBase {
 
         return await api.getModel()
     }
+
+    public func streamMessage(builder: KoboldRequestBuilder) -> AsyncStream<Result<ModelResponse, APIError>> {
+        guard let api = api as? KoboldAPI else {
+            return AsyncStream { continuation in
+                continuation.yield(.failure(.invalidService))
+                continuation.finish()
+            }
+        }
+        return api.streamMessage(builder: builder)
+    }
+
+    public func sendMessage(builder: KoboldRequestBuilder) async -> Result<ModelResponse, APIError> {
+        guard let api = api as? KoboldAPI else {
+            return .failure(.invalidService)
+        }
+        return await api.sendMessage(builder: builder)
+    }
 }
 
 public protocol ResponseModel {
@@ -66,11 +89,12 @@ public protocol ResponseModel {
     var promptTokens: Int? { get }
 }
 
-public struct ModelResponse: ResponseModel {
+public struct ModelResponse: ResponseModel, @unchecked Sendable {
     public var role: String?
     public var text: String?
     public var responseTokens: Int?
     public var promptTokens: Int?
+    public var streaming: Bool?
     public var rawResponse: Codable
     
     public init<T: Codable>(
@@ -78,12 +102,14 @@ public struct ModelResponse: ResponseModel {
         text: String? = nil,
         responseTokens: Int? = nil,
         promptTokens: Int? = nil,
+        streaming: Bool? = false,
         rawResponse: T
     ) {
         self.role = role
         self.text = text
         self.responseTokens = responseTokens
         self.promptTokens = promptTokens
+        self.streaming = streaming
         self.rawResponse = rawResponse
     }
     

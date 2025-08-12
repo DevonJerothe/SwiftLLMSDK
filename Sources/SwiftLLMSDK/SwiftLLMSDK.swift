@@ -7,11 +7,110 @@ public protocol LanguageModelService {
     var baseURL: String { get }
     var timeoutInterval: TimeInterval { get }
     var apiKey: String? { get}
-
-    func sendMessage(promptModel: RequestBodyBuilder) async -> Result<ModelResponse, APIError>
 }
 
 extension LanguageModelService {
+
+    func sendStreamedRequest(
+        forAPI: LanguageModelService.Type,
+        path: String,
+        method: String,
+        requestBody: Data? = nil
+    ) -> AsyncStream<Result<ModelResponse, APIError>> {
+
+        let (stream, continuation) = AsyncStream<Result<ModelResponse, APIError>>.makeStream()
+
+        guard let baseURL = URL(string: baseURL + path) else {
+            continuation.yield(.failure(.invalidURL))
+            continuation.finish()
+            return stream
+        }
+
+        var request = URLRequest(url: baseURL, timeoutInterval: timeoutInterval)
+        request.httpMethod = method
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("JAX AI", forHTTPHeaderField: "X-Title")
+        request.setValue("https://jax-ai-com.l.ink/", forHTTPHeaderField: "HTTP-Referer")
+        
+        if let apiKey {
+            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        }
+
+        if let requestBody {
+            request.httpBody = requestBody
+        }
+
+        Task.detached(priority: .medium) {
+            do {
+                let (bytes, response) = try await URLSession.shared.bytes(for: request) 
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    continuation.yield(.failure(.invalidResponse))
+                    continuation.finish()
+                    return
+                }
+                guard (200...299).contains(httpResponse.statusCode) else {
+                    continuation.yield(.failure(.serverError(code: httpResponse.statusCode)))
+                    continuation.finish()
+                    return
+                }
+
+                var accumulatedText = "" 
+                for try await line in bytes.lines {
+                    guard line.hasPrefix("data:") else { continue}
+                    let payload = line.dropFirst(5).trimmingCharacters(in: .whitespaces)
+
+                    // We need to handle the different types of responses here. 
+                    // OpenRouter indicates the end of the response with [DONE]
+                    if payload == "[DONE]" {
+                        let final = ModelResponse(role: "assistant", text: accumulatedText, responseTokens: nil, promptTokens: nil, streaming: false, rawResponse: OpenRouterAPIResponse())
+                        continuation.yield(.success(final))
+                        continuation.finish()
+                        break
+                    }
+                    if let jsonData = payload.data(using: .utf8) {
+                        // Handle the different response types based on the model type 
+                        let decoder = JSONDecoder() 
+                        if let _ = forAPI as? OpenRouterAPI.Type {
+                            let chunk = try decoder.decode(OpenRouterStreamChunk.self, from: jsonData)
+                            let deltaText = chunk.choices?.first?.delta?.content ?? ""
+                            if !deltaText.isEmpty {
+                                accumulatedText += deltaText
+                                let partial = ModelResponse(role: chunk.choices?.first?.delta?.role ?? "assistant", text: accumulatedText, responseTokens: nil, promptTokens: nil, streaming: true, rawResponse: chunk)
+                                continuation.yield(.success(partial))
+                            }
+                        } else if let _ = forAPI as? KoboldAPI.Type {                    
+                            let chunk: KoboldStreamChunk = try decoder.decode(KoboldStreamChunk.self, from: jsonData)
+                            let deltaText = chunk.token ?? ""
+
+                            // Check if the response is done 
+                            if chunk.finishReason == "stop" {
+                                accumulatedText += deltaText
+                                let final = ModelResponse(role: "assistant", text: accumulatedText, responseTokens: nil, promptTokens: nil, streaming: false, rawResponse: OpenRouterAPIResponse())
+                                continuation.yield(.success(final))
+                                continuation.finish()
+                                break
+                            }
+
+                            if !deltaText.isEmpty {
+                                accumulatedText += deltaText
+                                let partial = ModelResponse(role: "assistant", text: accumulatedText, responseTokens: nil, promptTokens: nil, streaming: true, rawResponse: chunk)
+                                continuation.yield(.success(partial))
+                            }
+                        }
+                    }
+                }
+            } catch let error as URLError where error.code == .timedOut {
+                continuation.yield(.failure(.timeout))
+                continuation.finish()
+            } catch ( _ ) {
+                continuation.yield(.failure(.invalidData))
+                continuation.finish()
+                return
+            }
+        }
+
+        return stream
+    }
 
     func sendRequest<T: Decodable>(
         for: T.Type,

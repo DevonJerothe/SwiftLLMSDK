@@ -64,6 +64,16 @@ extension APIManager where T: KoboldAPIBase {
         return await api.getModel()
     }
 
+    public func streamMessage(builder: KoboldRequestBuilder) -> AsyncStream<Result<ModelResponse, APIError>> {
+        guard let api = api as? KoboldAPI else {
+            return AsyncStream { continuation in
+                continuation.yield(.failure(.invalidService))
+                continuation.finish()
+            }
+        }
+        return api.streamMessage(builder: builder)
+    }
+
     public func sendMessage(builder: KoboldRequestBuilder) async -> Result<ModelResponse, APIError> {
         guard let api = api as? KoboldAPI else {
             return .failure(.invalidService)
@@ -84,6 +94,7 @@ public struct ModelResponse: ResponseModel, @unchecked Sendable {
     public var text: String?
     public var responseTokens: Int?
     public var promptTokens: Int?
+    public var streaming: Bool?
     public var rawResponse: Codable
     
     public init<T: Codable>(
@@ -91,12 +102,14 @@ public struct ModelResponse: ResponseModel, @unchecked Sendable {
         text: String? = nil,
         responseTokens: Int? = nil,
         promptTokens: Int? = nil,
+        streaming: Bool? = false,
         rawResponse: T
     ) {
         self.role = role
         self.text = text
         self.responseTokens = responseTokens
         self.promptTokens = promptTokens
+        self.streaming = streaming
         self.rawResponse = rawResponse
     }
     

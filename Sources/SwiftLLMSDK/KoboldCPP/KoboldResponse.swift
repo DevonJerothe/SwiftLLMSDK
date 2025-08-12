@@ -74,3 +74,14 @@ extension KoboldAPIResponse {
 }
 
 
+public class KoboldStreamChunk: Codable, @unchecked Sendable {
+    public var token: String? 
+    public var finishReason: String?
+
+    enum CodingKeys: String, CodingKey {
+        case token = "token"
+        case finishReason = "finish_reason"
+    }
+}
+
+

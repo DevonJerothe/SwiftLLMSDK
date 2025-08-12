@@ -36,6 +36,17 @@ public struct KoboldAPI: LanguageModelService, KoboldAPIBase {
         await getString(endpoint: "/api/v1/model")
     }
 
+    public func streamMessage(builder: KoboldRequestBuilder) -> AsyncStream<Result<ModelResponse, APIError>> {
+        let requestModel = builder.build()
+
+        return sendStreamedRequest(
+            forAPI: KoboldAPI.self,
+            path: "/api/extra/generate/stream",
+            method: "POST",
+            requestBody: requestModel.toJSON().data(using: .utf8)
+        )
+    }
+
     public func sendMessage(promptModel: RequestBodyBuilder) async -> Result<ModelResponse, APIError> {
         let koboldRequest = promptModel.buildKoboldBody()
         let koboldRequestData = koboldRequest.toJSON().data(using: .utf8)

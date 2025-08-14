@@ -83,7 +83,7 @@ extension LanguageModelService {
                             let deltaText = chunk.token ?? ""
 
                             // Check if the response is done 
-                            if chunk.finishReason == "stop" {
+                            if chunk.finishReason == "stop" || chunk.finishReason == "length" {
                                 accumulatedText += deltaText
                                 let final = ModelResponse(role: "assistant", text: accumulatedText, responseTokens: nil, promptTokens: nil, streaming: false, rawResponse: OpenRouterAPIResponse())
                                 continuation.yield(.success(final))

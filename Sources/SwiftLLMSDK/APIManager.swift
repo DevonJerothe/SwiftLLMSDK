@@ -64,6 +64,22 @@ extension APIManager where T: KoboldAPIBase {
         return await api.getModel()
     }
 
+    public func countTokens(text: String) async -> Result<Int, APIError> {
+        guard let api = api as? KoboldAPI else {
+            return .failure(.invalidService)
+        }
+
+        return await api.countTokens(text: text)
+    }
+
+    public func getMaxContextLength() async -> Result<Int, APIError> {
+        guard let api = api as? KoboldAPI else {
+            return .failure(.invalidService)
+        }
+
+        return await api.getMaxContextLength()
+    }
+
     public func streamMessage(builder: KoboldRequestBuilder) -> AsyncStream<Result<ModelResponse, APIError>> {
         guard let api = api as? KoboldAPI else {
             return AsyncStream { continuation in

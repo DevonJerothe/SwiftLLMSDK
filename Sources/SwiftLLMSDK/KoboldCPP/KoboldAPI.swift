@@ -21,7 +21,7 @@ public struct KoboldAPI: LanguageModelService, KoboldAPIBase {
     }
 
     public func getMaxContextLength() async -> Result<Int, APIError> {
-        await getInt(endpoint: "/api/v1/config/max_context_length")
+        await getInt(endpoint: "/api/extra/true_max_context_length")
     }
 
     public func getMaxLength() async -> Result<Int, APIError> {
@@ -34,6 +34,30 @@ public struct KoboldAPI: LanguageModelService, KoboldAPIBase {
 
     public func getModel() async -> Result<String, APIError> {
         await getString(endpoint: "/api/v1/model")
+    }
+
+    public func countTokens(text: String) async -> Result<Int, APIError> {
+        let requestBody = [
+            "prompt": text
+        ]
+
+        guard let jsonData = try? JSONSerialization.data(withJSONObject: requestBody, options: []) else {
+            return .failure(.invalidData)
+        }
+
+        let result = await sendRequest(
+            for: IntResponse.self,
+            path: "/api/extra/tokencount", 
+            method: "POST", 
+            requestBody: jsonData
+        )
+
+        switch result {
+        case .success(let response):
+            return .success(response.value)
+        case .failure(let error):
+            return .failure(error)
+        }
     }
 
     public func streamMessage(builder: KoboldRequestBuilder) -> AsyncStream<Result<ModelResponse, APIError>> {

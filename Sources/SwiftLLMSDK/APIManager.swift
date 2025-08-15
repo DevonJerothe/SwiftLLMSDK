@@ -111,7 +111,8 @@ public struct ModelResponse: ResponseModel, @unchecked Sendable {
     public var responseTokens: Int?
     public var promptTokens: Int?
     public var streaming: Bool?
-    public var rawResponse: Codable
+    public var disconnect: Bool = false
+    public var rawResponse: Codable?
     
     public init<T: Codable>(
         role: String? = "assistant",
@@ -119,6 +120,7 @@ public struct ModelResponse: ResponseModel, @unchecked Sendable {
         responseTokens: Int? = nil,
         promptTokens: Int? = nil,
         streaming: Bool? = false,
+        disconnect: Bool = false,
         rawResponse: T
     ) {
         self.role = role
@@ -126,7 +128,26 @@ public struct ModelResponse: ResponseModel, @unchecked Sendable {
         self.responseTokens = responseTokens
         self.promptTokens = promptTokens
         self.streaming = streaming
+        self.disconnect = disconnect
         self.rawResponse = rawResponse
+    }
+
+    // Init for non generic responses.. pretty much errors 
+    public init(
+        role: String? = "assistant",
+        text: String? = nil,
+        responseTokens: Int? = nil,
+        promptTokens: Int? = nil,
+        streaming: Bool? = false,
+        disconnect: Bool = false
+    ) {
+        self.role = role
+        self.text = text
+        self.responseTokens = responseTokens
+        self.promptTokens = promptTokens
+        self.streaming = streaming
+        self.disconnect = disconnect
+        self.rawResponse = nil
     }
     
     /// Attempts to cast the rawResponse back to its original type

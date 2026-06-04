@@ -1,7 +1,7 @@
 import Foundation
 
 public class OpenRouterResponse {
-    public var responseContent: OpenRouterAPIResponse
+    public var responseContent: ChatCompletionResponse
 
     public var text: String?
     public var responseTokens: Int?
@@ -13,7 +13,7 @@ public class OpenRouterResponse {
         text: String? = "",
         responseTokens: Int? = nil,
         promptTokens: Int? = nil,
-        responseContent: OpenRouterAPIResponse
+        responseContent: ChatCompletionResponse
     ) {
         self.text = text
         self.responseTokens = responseTokens
@@ -24,38 +24,62 @@ public class OpenRouterResponse {
 }
 
 // MARK: - API Response Model
-public class OpenRouterAPIResponse: Codable {
-    var id: String? 
-    var provider: String? 
-    var model: String?
-    var object: String?
-    var created: Int?
-    var systemFingerprint: String? 
-    var usage: OpenRouterUsage?
-    var choices: [OpenRouterChoice]?
+public class ChatCompletionResponse: Codable {
+    public var id: String? 
+    public var provider: String? 
+    public var model: String?
+    public var object: String?
+    public var created: Int?
+    public var systemFingerprint: String? 
+    public var usage: ChatCompletionUsage?
+    public var choices: [ChatCompletionChoice]?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case provider
+        case model
+        case object
+        case created
+        case systemFingerprint = "system_fingerprint"
+        case usage
+        case choices
+    }
 }
 
-public class OpenRouterUsage: Codable {
-    var promptTokens: Int?
-    var completionTokens: Int?
-    var totalTokens: Int?
+public class ChatCompletionUsage: Codable {
+    public var promptTokens: Int?
+    public var completionTokens: Int?
+    public var totalTokens: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case promptTokens = "prompt_tokens"
+        case completionTokens = "completion_tokens"
+        case totalTokens = "total_tokens"
+    }
 }
 
-public class OpenRouterChoice: Codable {
-    var finishReason: String?
-    var nativeFinishReason: String?
-    var index: Int?
-    var message: OpenRouterAPIMessage?
+public class ChatCompletionChoice: Codable {
+    public var finishReason: String?
+    public var nativeFinishReason: String?
+    public var index: Int?
+    public var message: ChatCompletionResponseMessage?
+
+    enum CodingKeys: String, CodingKey {
+        case finishReason = "finish_reason"
+        case nativeFinishReason = "native_finish_reason"
+        case index
+        case message
+    }
 }
 
-public class OpenRouterAPIMessage: Codable {
-    var role: String? 
-    var content: String? 
-    var refusal: Bool?
-    var reasoning: String? 
+public class ChatCompletionResponseMessage: Codable {
+    public var role: String? 
+    public var content: String? 
+    public var refusal: Bool?
+    public var reasoning: String? 
 }
 
-extension OpenRouterAPIResponse {
+extension ChatCompletionResponse {
     public func toJSON() -> String {
         let encoder = JSONEncoder()
         encoder.keyEncodingStrategy = .convertToSnakeCase
@@ -86,31 +110,45 @@ extension OpenRouterAPIResponse {
 }
 
 // MARK: - Streaming (SSE) Chunk Models
-public class OpenRouterStreamChunk: Codable, @unchecked Sendable {
+public class ChatCompletionStreamChunk: Codable, @unchecked Sendable {
     public var id: String?
     public var provider: String?
     public var model: String?
     public var object: String?
     public var created: Int?
-    public var choices: [OpenRouterStreamChoice]?
-    public var usage: OpenRouterUsage?
+    public var choices: [ChatCompletionStreamChoice]?
+    public var usage: ChatCompletionUsage?
 }
 
-public class OpenRouterStreamChoice: Codable, @unchecked Sendable {
+public class ChatCompletionStreamChoice: Codable, @unchecked Sendable {
     public var index: Int?
-    public var delta: OpenRouterStreamDelta?
+    public var delta: ChatCompletionStreamDelta?
     public var finishReason: String?
     public var nativeFinishReason: String?
+
+    enum CodingKeys: String, CodingKey {
+        case index
+        case delta
+        case finishReason = "finish_reason"
+        case nativeFinishReason = "native_finish_reason"
+    }
 }
 
-public class OpenRouterStreamDelta: Codable, @unchecked Sendable {
+public class ChatCompletionStreamDelta: Codable, @unchecked Sendable {
     public var role: String?
     public var content: String?
     public var reasoning: String?
-    public var reasoningDetails: [OpenRouterReasoningDetail]?
+    public var reasoningDetails: [ChatCompletionReasoningDetail]?
+
+    enum CodingKeys: String, CodingKey {
+        case role
+        case content
+        case reasoning
+        case reasoningDetails = "reasoning_details"
+    }
 }
 
-public class OpenRouterReasoningDetail: Codable, @unchecked Sendable {
+public class ChatCompletionReasoningDetail: Codable, @unchecked Sendable {
     public var type: String?
     public var text: String?
     public var format: String?
@@ -146,3 +184,27 @@ public class OpenRouterRateLimit: Codable {
     var requests: Int
     var interval: String
 }
+
+@available(*, deprecated, renamed: "ChatCompletionResponse")
+public typealias OpenRouterAPIResponse = ChatCompletionResponse
+
+@available(*, deprecated, renamed: "ChatCompletionUsage")
+public typealias OpenRouterUsage = ChatCompletionUsage
+
+@available(*, deprecated, renamed: "ChatCompletionChoice")
+public typealias OpenRouterChoice = ChatCompletionChoice
+
+@available(*, deprecated, renamed: "ChatCompletionResponseMessage")
+public typealias OpenRouterAPIMessage = ChatCompletionResponseMessage
+
+@available(*, deprecated, renamed: "ChatCompletionStreamChunk")
+public typealias OpenRouterStreamChunk = ChatCompletionStreamChunk
+
+@available(*, deprecated, renamed: "ChatCompletionStreamChoice")
+public typealias OpenRouterStreamChoice = ChatCompletionStreamChoice
+
+@available(*, deprecated, renamed: "ChatCompletionStreamDelta")
+public typealias OpenRouterStreamDelta = ChatCompletionStreamDelta
+
+@available(*, deprecated, renamed: "ChatCompletionReasoningDetail")
+public typealias OpenRouterReasoningDetail = ChatCompletionReasoningDetail

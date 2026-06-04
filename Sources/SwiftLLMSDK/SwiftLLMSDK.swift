@@ -40,7 +40,11 @@ extension LanguageModelService {
             request.httpBody = requestBody
         }
 
-        Task.detached(priority: .medium) {
+        let isOpenRouterAPI = forAPI is OpenRouterAPI.Type
+        let isOpenAPI = forAPI is OpenAPI.Type
+        let isKoboldAPI = forAPI is KoboldAPI.Type
+
+        Task(priority: .medium) {
             do {
                 let (bytes, response) = try await URLSession.shared.bytes(for: request) 
                 guard let httpResponse = response as? HTTPURLResponse else {
@@ -62,7 +66,7 @@ extension LanguageModelService {
                     // We need to handle the different types of responses here. 
                     // OpenRouter indicates the end of the response with [DONE]
                     if payload == "[DONE]" {
-                        let final = ModelResponse(role: "assistant", text: accumulatedText, responseTokens: nil, promptTokens: nil, streaming: false, rawResponse: OpenRouterAPIResponse())
+                        let final = ModelResponse(role: "assistant", text: accumulatedText, responseTokens: nil, promptTokens: nil, streaming: false, rawResponse: ChatCompletionResponse())
                         continuation.yield(.success(final))
                         continuation.finish()
                         break
@@ -70,22 +74,30 @@ extension LanguageModelService {
                     if let jsonData = payload.data(using: .utf8) {
                         // Handle the different response types based on the model type 
                         let decoder = JSONDecoder() 
-                        if let _ = forAPI as? OpenRouterAPI.Type {
-                            let chunk = try decoder.decode(OpenRouterStreamChunk.self, from: jsonData)
+                        if isOpenRouterAPI {
+                            let chunk = try decoder.decode(ChatCompletionStreamChunk.self, from: jsonData)
                             let deltaText = chunk.choices?.first?.delta?.content ?? ""
                             if !deltaText.isEmpty {
                                 accumulatedText += deltaText
-                                let partial = ModelResponse(role: chunk.choices?.first?.delta?.role ?? "assistant", text: accumulatedText, responseTokens: nil, promptTokens: nil, streaming: true, rawResponse: chunk)
+                                let partial = ModelResponse(role: chunk.choices?.first?.delta?.role ?? "assistant", text: accumulatedText, deltaText: deltaText, responseTokens: nil, promptTokens: nil, streaming: true, rawResponse: chunk)
                                 continuation.yield(.success(partial))
                             }
-                        } else if let _ = forAPI as? KoboldAPI.Type {                    
+                        } else if isOpenAPI {
+                            let chunk = try decoder.decode(ChatCompletionStreamChunk.self, from: jsonData)
+                            let deltaText = chunk.choices?.first?.delta?.content ?? ""
+                            if !deltaText.isEmpty {
+                                accumulatedText += deltaText
+                                let partial = ModelResponse(role: chunk.choices?.first?.delta?.role ?? "assistant", text: accumulatedText, deltaText: deltaText, responseTokens: nil, promptTokens: nil, streaming: true, rawResponse: chunk)
+                                continuation.yield(.success(partial))
+                            }
+                        } else if isKoboldAPI {                    
                             let chunk: KoboldStreamChunk = try decoder.decode(KoboldStreamChunk.self, from: jsonData)
                             let deltaText = chunk.token ?? ""
 
                             // Check if the response is done 
                             if chunk.finishReason == "stop" || chunk.finishReason == "length" {
                                 accumulatedText += deltaText
-                                let final = ModelResponse(role: "assistant", text: accumulatedText, responseTokens: nil, promptTokens: nil, streaming: false, rawResponse: OpenRouterAPIResponse())
+                                let final = ModelResponse(role: "assistant", text: accumulatedText, deltaText: deltaText, responseTokens: nil, promptTokens: nil, streaming: false, rawResponse: ChatCompletionResponse())
                                 continuation.yield(.success(final))
                                 continuation.finish()
                                 break
@@ -93,7 +105,7 @@ extension LanguageModelService {
 
                             if !deltaText.isEmpty {
                                 accumulatedText += deltaText
-                                let partial = ModelResponse(role: "assistant", text: accumulatedText, responseTokens: nil, promptTokens: nil, streaming: true, rawResponse: chunk)
+                                let partial = ModelResponse(role: "assistant", text: accumulatedText, deltaText: deltaText, responseTokens: nil, promptTokens: nil, streaming: true, rawResponse: chunk)
                                 continuation.yield(.success(partial))
                             }
                         }

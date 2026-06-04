@@ -6,9 +6,9 @@ public enum OpenRouterReasoningEffort: String, Codable {
     case high = "high"
 }
 
-public class OpenRouterPromptModel: Codable {
+public class ChatCompletionRequest: Codable {
     public var model: String
-    public var messages: [OpenRouterMessage]? 
+    public var messages: [ChatCompletionMessage]? 
     public var stop: [String]?
     public var temperature: Double?
     public var topP: Double?
@@ -25,7 +25,7 @@ public class OpenRouterPromptModel: Codable {
 
     public init(
         model: String,
-        messages: [OpenRouterMessage]? = nil,
+        messages: [ChatCompletionMessage]? = nil,
         stop: [String]? = nil,
         temperature: Double? = nil,
         topP: Double? = nil,
@@ -56,11 +56,12 @@ public class OpenRouterPromptModel: Codable {
         self.frequencyPenalty = frequencyPenalty
         self.seed = seed
 
-        // Reasoning
-        self.reasoning = OpenRouterReasoning(
-            effort: reasoningEffort,
-            exclude: excludeReasoning
-        )
+        if reasoningEffort != nil || excludeReasoning != nil {
+            self.reasoning = OpenRouterReasoning(
+                effort: reasoningEffort,
+                exclude: excludeReasoning
+            )
+        }
     }
 }
 
@@ -80,33 +81,33 @@ public struct OpenRouterReasoning: Codable {
     }
 }
 
-public struct OpenRouterMessage: Codable {
+public struct ChatCompletionMessage: Codable {
     public var role: String
-    public var content: OpenRouterMessageContent
+    public var content: ChatCompletionMessageContent
 
     public init(role: String, content: String) {
         self.role = role 
         self.content = .string(content)
     }
 
-    public init(role: String, parts: [OpenRouterMessageContentParts]) {
+    public init(role: String, parts: [ChatCompletionMessageContentPart]) {
         self.role = role
         self.content = .parts(parts)
     }
 }
 
-public enum OpenRouterMessageContent: Codable {
+public enum ChatCompletionMessageContent: Codable {
     case string(String)
-    case parts([OpenRouterMessageContentParts])
+    case parts([ChatCompletionMessageContentPart])
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
-        if let parts = try? container.decode([OpenRouterMessageContentParts].self) {
+        if let parts = try? container.decode([ChatCompletionMessageContentPart].self) {
             self = .parts(parts)
         } else if let text = try? container.decode(String.self) {
             self = .string(text)
         } else {
-            throw DecodingError.typeMismatch(OpenRouterMessageContent.self, DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Expected string or parts"))
+            throw DecodingError.typeMismatch(ChatCompletionMessageContent.self, DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Expected string or parts"))
         }
     }
 
@@ -121,7 +122,7 @@ public enum OpenRouterMessageContent: Codable {
     }
 }
 
-public struct OpenRouterMessageContentParts: Codable {
+public struct ChatCompletionMessageContentPart: Codable {
     public var type: String
     public var text: String?
     public var imageUrl: ImageURLPart?
@@ -131,7 +132,7 @@ public struct ImageURLPart: Codable {
     public var url: String?
 }
 
-extension OpenRouterPromptModel {
+extension ChatCompletionRequest {
     public func toJSON() -> String {
         let encoder = JSONEncoder()
         encoder.keyEncodingStrategy = .convertToSnakeCase
@@ -139,3 +140,15 @@ extension OpenRouterPromptModel {
         return String(data: requestData, encoding: .utf8)!
     }
 }
+
+@available(*, deprecated, renamed: "ChatCompletionRequest")
+public typealias OpenRouterPromptModel = ChatCompletionRequest
+
+@available(*, deprecated, renamed: "ChatCompletionMessage")
+public typealias OpenRouterMessage = ChatCompletionMessage
+
+@available(*, deprecated, renamed: "ChatCompletionMessageContent")
+public typealias OpenRouterMessageContent = ChatCompletionMessageContent
+
+@available(*, deprecated, renamed: "ChatCompletionMessageContentPart")
+public typealias OpenRouterMessageContentParts = ChatCompletionMessageContentPart

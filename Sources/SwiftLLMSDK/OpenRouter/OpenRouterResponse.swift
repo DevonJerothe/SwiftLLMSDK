@@ -75,7 +75,7 @@ public class ChatCompletionChoice: Codable {
 public class ChatCompletionResponseMessage: Codable {
     public var role: String? 
     public var content: String? 
-    public var refusal: Bool?
+    public var refusal: String?
     public var reasoning: String? 
 }
 

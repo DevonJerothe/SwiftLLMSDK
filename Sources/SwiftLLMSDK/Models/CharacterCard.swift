@@ -95,6 +95,7 @@ public class CharacterCardData: Codable {
     public var characterVersion: String?
     public var alternateGreetings: [String]?
     public var tags: [String]?
+    public var characterBook: LoreBook?
 
     public enum CodingKeys: String, CodingKey {
         case messageExamples = "mes_example"
@@ -111,9 +112,6 @@ public class CharacterCardData: Codable {
         case characterVersion = "character_version"
         case alternateGreetings = "alternate_greetings"
         case tags = "tags"
+        case characterBook = "character_book"
     }
-
-    // TODO: add support for the following
-//    public var extenstions:
-//    public var character_book:
 }

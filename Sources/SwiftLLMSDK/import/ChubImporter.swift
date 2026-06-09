@@ -15,6 +15,7 @@ public protocol CharacterImporterService {
     func getCardViaPath(_ fullPath: String) async throws -> Result<CharacterCard, APIError>
 }
 
+@available(*, deprecated, message: "ChubImporter should be replaced with the more generic CharImporter")
 public struct ChubImporter: CharacterImporterService {
     public var urlSession: URLSession
     public var siteURL: URL = URL(string: "https://chub.dev")!

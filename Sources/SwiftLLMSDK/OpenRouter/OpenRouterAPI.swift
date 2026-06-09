@@ -31,7 +31,7 @@ public struct OpenRouterAPI: LanguageModelService, OpenRouterBase {
         let openRouterRequest = promptModel.buildOpenRouterBody()
         let openRouterRequestData = openRouterRequest.toJSON().data(using: .utf8)
 
-        let result = await sendRequest(for: OpenRouterAPIResponse.self, path: "/chat/completions", method: "POST", requestBody: openRouterRequestData) 
+        let result = await sendRequest(for: ChatCompletionResponse.self, path: "/chat/completions", method: "POST", requestBody: openRouterRequestData) 
 
         switch result {
         case .success(let response):
@@ -47,7 +47,7 @@ public struct OpenRouterAPI: LanguageModelService, OpenRouterBase {
         let openRouterRequestData = openRouterRequest.toJSON().data(using: .utf8)
 
         let result = await sendRequest(
-            for: OpenRouterAPIResponse.self,
+            for: ChatCompletionResponse.self,
             path: "/chat/completions",
             method: "POST",
             requestBody: openRouterRequestData

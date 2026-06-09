@@ -12,8 +12,10 @@ public protocol CharacterImporterService {
     var siteURL: URL { get }
 
     func getCardViaURL(_ url: URL) async throws -> Result<CharacterCard, APIError>
+    func getCardViaPath(_ fullPath: String) async throws -> Result<CharacterCard, APIError>
 }
 
+@available(*, deprecated, message: "ChubImporter should be replaced with the more generic CharImporter")
 public struct ChubImporter: CharacterImporterService {
     public var urlSession: URLSession
     public var siteURL: URL = URL(string: "https://chub.dev")!
@@ -60,7 +62,34 @@ public struct ChubImporter: CharacterImporterService {
             }
 
             let pngData = try await getData(url: pngURL)
-            let characterCard = try getCharData(data: pngData)
+            let characterCard = try await getCharData(data: pngData, fallback: chubCard)
+            // inject card info into the returned character card. This info is not in the png data.
+            characterCard.data?.avatar = pngURL.absoluteString
+            characterCard.cardDescription = chubCard.node?.tagline
+            characterCard.totalTokens = chubCard.node?.nTokens
+
+            // Also add downloaded PNG data to model so we can skip using async image via URL
+            characterCard.pngData = pngData
+            return .success(characterCard)
+        } catch (let error) {
+            throw error
+        }
+    }
+
+    public func getCardViaPath(_ fullPath: String) async throws -> Result<CharacterCard, APIError> {
+        let downloadURL = URL(string: "https://gateway.chub.ai/api/characters/\(fullPath)")!
+        let data = try await getData(url: downloadURL) 
+
+        do {
+            let chubCard = try JSONDecoder().decode(ChubCard.self, from: data)
+            /// Download the PNG data from the chub info
+            /// Note that some cards img data may have been scrubbed. In this case we should fallback to JSON for char info. 
+            guard let pngURL = chubCard.node?.avatar else {
+                throw APIError.invalidResponse
+            }
+
+            let pngData = try await getData(url: pngURL)
+            let characterCard = try await getCharData(data: pngData, fallback: chubCard)
             // inject card info into the returned character card. This info is not in the png data.
             characterCard.data?.avatar = pngURL.absoluteString
             characterCard.cardDescription = chubCard.node?.tagline
@@ -98,9 +127,10 @@ extension ChubImporter {
      * Reads Character metadata from a PNG image buffer.
      * Supports both V2 (chara) and V3 (ccv3). V3 (ccv3) takes precedence.
      * @param data PNG image data
+     * @param fallback ChubCard fallback item if no char details exist in PNG
      * @returns Character data as a CharacterCard object
      */
-    private func getCharData(data: Data) throws -> CharacterCard {
+    private func getCharData(data: Data, fallback: ChubCard) async throws -> CharacterCard {
         var textChunks = [String: String]()
         let pngSig = Data([137, 80, 78, 71, 13, 10, 26, 10])
 
@@ -168,7 +198,22 @@ extension ChubImporter {
             let characterCard = try JSONDecoder().decode(CharacterCard.self, from: jsonData)
             return characterCard
         }
-
+        
+        guard let fallbackId = fallback.node?.id else {
+            throw PNGMetadataError.noCharacterData
+        }
+        
+        // if we made it this far the PNG does not contain character Data. Handle with fallback
+        let fallbackJsonURL = URL(string: "https://gateway.chub.ai/api/v4/projects/\(fallbackId)/repository/files/card.json/raw")!
+        
+        let fallbackData = try await getData(url: fallbackJsonURL)
+        do {
+            let characterCard = try JSONDecoder().decode(CharacterCard.self, from: fallbackData)
+            return characterCard
+        } catch {
+            throw PNGMetadataError.noCharacterData
+        }
+        
         throw PNGMetadataError.noCharacterData
     }
 

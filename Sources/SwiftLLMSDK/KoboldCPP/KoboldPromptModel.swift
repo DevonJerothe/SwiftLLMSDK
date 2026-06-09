@@ -19,6 +19,7 @@ public class KoboldPromptModel: Codable {
     public var stopSequence: [String]?
     public var trimStop: Bool?
     public var samplerOrder: [Int]?
+    public var bannedTokens: [String]?
 
     public init(
         maxContextLength: Int? = 4096,
@@ -39,7 +40,8 @@ public class KoboldPromptModel: Codable {
         stopSequence: [String]? = ["\nUser:", "\nBot:"],
         trimStop: Bool? = true,
         samplerOrder: [Int]? = [6, 0, 1, 3, 4, 2, 5],
-        promptTemplate: String? = nil
+        promptTemplate: String? = nil,
+        bannedTokens: [String]? = KoboldPromptModel.defaultSlopList
     ) {
         self.maxContextLength = maxContextLength
         self.maxLength = maxLength
@@ -58,12 +60,15 @@ public class KoboldPromptModel: Codable {
         self.stopSequence = stopSequence
         self.trimStop = trimStop
         self.samplerOrder = samplerOrder
+        self.bannedTokens = bannedTokens
 
         if var promptTemplate = promptTemplate {
             promptTemplate.append(memory ?? "")
-            self.memory = promptTemplate
+
+            let fullMemory = "[INST][SYSTEM_PROMPT]\(promptTemplate)[/INST]"
+            self.memory = fullMemory
         } else {
-            self.memory = memory
+            self.memory = "[INST][SYSTEM_PROMPT]\(memory ?? "")[/INST]"
         }
     }
 }

@@ -14,9 +14,9 @@ public enum OpenRouterMessageRole: String, Codable {
 public class RequestBodyBuilder {
     // Character Card Info
     // This is used to set up the system prompt when using chat completion, otherwise its all added to the memory
-    public var characterDescription: String? 
-    public var characterPersonality: String? 
-    public var characterScenario: String? 
+    public var characterDescription: String?
+    public var characterPersonality: String?
+    public var characterScenario: String?
 
     // OpenRouter - chat completion
     public var selectedModel: String
@@ -24,8 +24,8 @@ public class RequestBodyBuilder {
     public var presencePen: Double?
 
     // Kobold
-    public var typical: Int? 
-    public var memory: String? 
+    public var typical: Int?
+    public var memory: String?
     public var trimStop: Bool?
     public var repatitionRange: Int?
     public var repatitionSlope: Double?
@@ -34,9 +34,9 @@ public class RequestBodyBuilder {
 
     // Shared
     public var messages: [RequestBodyMessages]
-    public var prompt: String? 
+    public var prompt: String?
     public var maxContextLength: Int?
-    public var promptTemplate: String? 
+    public var promptTemplate: String?
     public var stopSequence: [String]?
     public var temperature: Double?
     public var topP: Double?
@@ -77,13 +77,13 @@ public class RequestBodyBuilder {
         trimStop: Bool = true,
         samplerOrder: [Int] = [6, 0, 1, 3, 4, 2, 5],
         frequencyPen: Double = 0,
-        presencePen: Double = 0, 
+        presencePen: Double = 0,
         repatitionRange: Int = 360,
         repatitionSlope: Double = 0.7,
         tfs: Int = 1,
         repatitionPen: Double = 1.07,
         typical: Int = 1,
-        promptTemplate: String? = nil, 
+        promptTemplate: String? = nil,
         characterDescription: String? = nil,
         characterPersonality: String? = nil,
         characterScenario: String? = nil
@@ -217,31 +217,31 @@ public class RequestBodyBuilder {
         )
     }
 
-    public func buildOpenRouterBody() -> OpenRouterPromptModel {
+    public func buildOpenRouterBody() -> ChatCompletionRequest {
         // build system messages from our character card info
-        var systemMessages: [OpenRouterMessage] = []
+        var systemMessages: [ChatCompletionMessage] = []
         if let systemPrompt = self.promptTemplate {
-            systemMessages.append(OpenRouterMessage(role: "system", content: systemPrompt))
+            systemMessages.append(ChatCompletionMessage(role: "system", content: systemPrompt))
         }
         if let description = self.characterDescription {
-            systemMessages.append(OpenRouterMessage(role: "system", content: description))
+            systemMessages.append(ChatCompletionMessage(role: "system", content: description))
         }
         if let personality = self.characterPersonality {
-            systemMessages.append(OpenRouterMessage(role: "system", content: personality))
+            systemMessages.append(ChatCompletionMessage(role: "system", content: personality))
         }
         if let scenario = self.characterScenario {
-            systemMessages.append(OpenRouterMessage(role: "system", content: scenario))
+            systemMessages.append(ChatCompletionMessage(role: "system", content: scenario))
         }
-        
+
         // build chat messages from our user / character messages
         let chatMessages = messages.map { message in
-            return OpenRouterMessage(role: message.role.rawValue, content: message.message)
+            return ChatCompletionMessage(role: message.role.rawValue, content: message.message)
         }
 
         // combine system and chat messages
         let openRouterMessages = systemMessages + chatMessages
 
-        let openRouterModel = OpenRouterPromptModel(
+        let openRouterModel = ChatCompletionRequest(
             model: self.selectedModel,
             messages: openRouterMessages,
             stop: self.stopSequence,
@@ -261,12 +261,12 @@ public class RequestBodyBuilder {
     public func buildKoboldBody() -> KoboldPromptModel {
         /// Kobold uses two properties `memory` and `prompt` all system prompt instructions should
         /// be added to the `memory` field and messages should be added to `prompt` along with their stop sequence
-        /// if prompt is passed to the model we should assume this already contains the messages. 
+        /// if prompt is passed to the model we should assume this already contains the messages.
         let koboldPrompt = self.prompt
 
         let koboldPromptModel = KoboldPromptModel(
-            maxContextLength: self.maxContextLength, 
-            maxLength: self.maxLength, 
+            maxContextLength: self.maxContextLength,
+            maxLength: self.maxLength,
             prompt: koboldPrompt ?? "",
             repPen: self.repatitionPen,
             repPenRange: self.repatitionRange,
@@ -282,13 +282,14 @@ public class RequestBodyBuilder {
             stopSequence: self.stopSequence,
             trimStop: self.trimStop,
             samplerOrder: self.samplerOrder,
-            promptTemplate: self.promptTemplate  
-        ) 
+            promptTemplate: self.promptTemplate
+        )
         return koboldPromptModel
     }
 }
 
 public class RequestBodyMessages {
+    public var id: UUID = UUID()
     public var role: OpenRouterMessageRole
     public var message: String
 

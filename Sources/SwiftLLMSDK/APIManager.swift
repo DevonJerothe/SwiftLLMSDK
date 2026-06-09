@@ -54,6 +54,36 @@ extension APIManager where T: OpenRouterBase {
     }
 }
 
+// MARK: - OpenAI-Compatible Functions
+extension APIManager where T: OpenAPIBase {
+    public func connect() async -> Result<String, APIError> {
+        guard let api = api as? OpenAPI else {
+            return .failure(.invalidService)
+        }
+
+        return .success(api.selectedModel)
+    }
+
+    public func sendMessage(builder: ChatCompletionRequestBuilder) async -> Result<ModelResponse, APIError> {
+        guard let api = api as? OpenAPI else {
+            return .failure(.invalidService)
+        }
+
+        return await api.sendMessage(builder: builder)
+    }
+
+    public func streamMessage(builder: ChatCompletionRequestBuilder) -> AsyncStream<Result<ModelResponse, APIError>> {
+        guard let api = api as? OpenAPI else {
+            return AsyncStream { continuation in
+                continuation.yield(.failure(.invalidService))
+                continuation.finish()
+            }
+        }
+
+        return api.streamMessage(builder: builder)
+    }
+}
+
 // MARK: - Kobold Functions
 extension APIManager where T: KoboldAPIBase {
     public func connect() async -> Result<String, APIError> {
@@ -108,6 +138,7 @@ public protocol ResponseModel {
 public struct ModelResponse: ResponseModel, @unchecked Sendable {
     public var role: String?
     public var text: String?
+    public var deltaText: String?
     public var responseTokens: Int?
     public var promptTokens: Int?
     public var streaming: Bool?
@@ -117,6 +148,7 @@ public struct ModelResponse: ResponseModel, @unchecked Sendable {
     public init<T: Codable>(
         role: String? = "assistant",
         text: String? = nil,
+        deltaText: String? = nil,
         responseTokens: Int? = nil,
         promptTokens: Int? = nil,
         streaming: Bool? = false,
@@ -125,6 +157,7 @@ public struct ModelResponse: ResponseModel, @unchecked Sendable {
     ) {
         self.role = role
         self.text = text
+        self.deltaText = deltaText
         self.responseTokens = responseTokens
         self.promptTokens = promptTokens
         self.streaming = streaming
@@ -136,6 +169,7 @@ public struct ModelResponse: ResponseModel, @unchecked Sendable {
     public init(
         role: String? = "assistant",
         text: String? = nil,
+        deltaText: String? = nil,
         responseTokens: Int? = nil,
         promptTokens: Int? = nil,
         streaming: Bool? = false,
@@ -143,6 +177,7 @@ public struct ModelResponse: ResponseModel, @unchecked Sendable {
     ) {
         self.role = role
         self.text = text
+        self.deltaText = deltaText
         self.responseTokens = responseTokens
         self.promptTokens = promptTokens
         self.streaming = streaming

@@ -8,7 +8,7 @@ public protocol EncodableRequestBuilder {
 
 // MARK: - OpenRouter
 public struct OpenRouterRequestBuilder: EncodableRequestBuilder {
-    public typealias RequestModel = OpenRouterPromptModel
+    public typealias RequestModel = ChatCompletionRequest
 
     // Required
     public var model: String
@@ -71,25 +71,25 @@ public struct OpenRouterRequestBuilder: EncodableRequestBuilder {
         self.characterScenario = characterScenario
     }
 
-    public func build() -> OpenRouterPromptModel {
-        var systemMessages: [OpenRouterMessage] = []
+    public func build() -> ChatCompletionRequest {
+        var systemMessages: [ChatCompletionMessage] = []
         if let systemPromptTemplate {
-            systemMessages.append(OpenRouterMessage(role: "system", content: systemPromptTemplate))
+            systemMessages.append(ChatCompletionMessage(role: "system", content: systemPromptTemplate))
         }
         if let characterDescription {
-            systemMessages.append(OpenRouterMessage(role: "system", content: characterDescription))
+            systemMessages.append(ChatCompletionMessage(role: "system", content: characterDescription))
         }
         if let characterPersonality {
-            systemMessages.append(OpenRouterMessage(role: "system", content: characterPersonality))
+            systemMessages.append(ChatCompletionMessage(role: "system", content: characterPersonality))
         }
         if let characterScenario {
-            systemMessages.append(OpenRouterMessage(role: "system", content: characterScenario))
+            systemMessages.append(ChatCompletionMessage(role: "system", content: characterScenario))
         }
 
-        let chatMessages: [OpenRouterMessage] = messages.map { OpenRouterMessage(role: $0.role.rawValue, content: $0.message) }
+        let chatMessages: [ChatCompletionMessage] = messages.map { ChatCompletionMessage(role: $0.role.rawValue, content: $0.message) }
         let openRouterMessages = systemMessages + chatMessages
 
-        return OpenRouterPromptModel(
+        return ChatCompletionRequest(
             model: model,
             messages: openRouterMessages,
             stop: stop,
@@ -132,6 +132,7 @@ public struct KoboldRequestBuilder: EncodableRequestBuilder {
     public var trimStop: Bool?
     public var samplerOrder: [Int]?
     public var promptTemplate: String?
+    public var bannedTokens: [String]?
 
     public init(
         prompt: String,
@@ -148,10 +149,11 @@ public struct KoboldRequestBuilder: EncodableRequestBuilder {
         repetitionPenalty: Double? = 1,
         repetitionRange: Int? = 0,
         repetitionSlope: Double? = 0,
-        stopSequence: [String]? = ["\nUser:", "\nBot:"],
+        stopSequence: [String]? = ["\nUser:", "\nAssistant:"],
         trimStop: Bool? = true,
         samplerOrder: [Int]? = [6, 0, 1, 3, 4, 2, 5],
-        promptTemplate: String? = nil
+        promptTemplate: String? = nil,
+        bannedTokens: [String]? = KoboldPromptModel.defaultSlopList
     ) {
         self.prompt = prompt
         self.memory = memory
@@ -171,6 +173,7 @@ public struct KoboldRequestBuilder: EncodableRequestBuilder {
         self.trimStop = trimStop
         self.samplerOrder = samplerOrder
         self.promptTemplate = promptTemplate
+        self.bannedTokens = bannedTokens
     }
 
     public func build() -> KoboldPromptModel {
@@ -192,9 +195,97 @@ public struct KoboldRequestBuilder: EncodableRequestBuilder {
             stopSequence: stopSequence,
             trimStop: trimStop,
             samplerOrder: samplerOrder,
-            promptTemplate: promptTemplate
+            promptTemplate: promptTemplate,
+            bannedTokens: bannedTokens
         )
     }
 }
 
+// MARK: - OpenAI-Compatible Chat Completions
+public struct ChatCompletionRequestBuilder: EncodableRequestBuilder {
+    public typealias RequestModel = ChatCompletionRequest
+
+    // Required
+    public var model: String
+    public var messages: [RequestBodyMessages]
+
+    // Optional tuning
+    public var stop: [String]?
+    public var temperature: Double?
+    public var topP: Double?
+    public var maxTokens: Int?
+    public var frequencyPenalty: Double?
+    public var presencePenalty: Double?
+    public var stream: Bool? = nil
+
+    // System context
+    public var systemPromptTemplate: String?
+    public var characterDescription: String?
+    public var characterPersonality: String?
+    public var characterScenario: String?
+
+
+    public init(
+        model: String,
+        messages: [RequestBodyMessages] = [],
+        stop: [String]? = nil,
+        temperature: Double? = nil,
+        topP: Double? = nil,
+        maxTokens: Int? = nil,
+        frequencyPenalty: Double? = nil,
+        presencePenalty: Double? = nil,
+        stream: Bool? = nil,
+        systemPromptTemplate: String? = nil,
+        characterDescription: String? = nil,
+        characterPersonality: String? = nil,
+        characterScenario: String? = nil
+    ) {
+        self.model = model
+        self.messages = messages
+        self.stop = stop
+        self.temperature = temperature
+        self.topP = topP
+        self.maxTokens = maxTokens
+        self.frequencyPenalty = frequencyPenalty
+        self.presencePenalty = presencePenalty
+        self.stream = stream
+        self.systemPromptTemplate = systemPromptTemplate
+        self.characterDescription = characterDescription
+        self.characterPersonality = characterPersonality
+        self.characterScenario = characterScenario
+    }
+
+    public func build() -> ChatCompletionRequest {
+        var systemMessages: [ChatCompletionMessage] = []
+        if let systemPromptTemplate {
+            systemMessages.append(ChatCompletionMessage(role: "system", content: systemPromptTemplate))
+        }
+        if let characterDescription {
+            systemMessages.append(ChatCompletionMessage(role: "system", content: characterDescription))
+        }
+        if let characterPersonality {
+            systemMessages.append(ChatCompletionMessage(role: "system", content: characterPersonality))
+        }
+        if let characterScenario {
+            systemMessages.append(ChatCompletionMessage(role: "system", content: characterScenario))
+        }
+
+        let chatMessages: [ChatCompletionMessage] = messages.map { ChatCompletionMessage(role: $0.role.rawValue, content: $0.message) }
+        let chatCompletionMessages = systemMessages + chatMessages
+
+        return ChatCompletionRequest(
+            model: model,
+            messages: chatCompletionMessages,
+            stop: stop,
+            temperature: temperature,
+            topP: topP,
+            maxTokens: maxTokens,
+            stream: stream,
+            presencePenalty: presencePenalty,
+            frequencyPenalty: frequencyPenalty,
+            excludeReasoning: nil,
+            reasoningEffort: nil
+        )
+    }
+}
 

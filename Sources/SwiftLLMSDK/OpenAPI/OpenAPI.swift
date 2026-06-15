@@ -1,7 +1,8 @@
 import Foundation
 
 public protocol OpenAPIBase {
-    var selectedModel: String { get }
+    var selectedModel: String? { get }
+    func getModels() async -> Result<[OpenAIModel], APIError>
 }
 
 public struct OpenAPI: LanguageModelService, OpenAPIBase {
@@ -10,7 +11,7 @@ public struct OpenAPI: LanguageModelService, OpenAPIBase {
     public var baseURL: String
     public var timeoutInterval: TimeInterval
 
-    public var selectedModel: String
+    public var selectedModel: String?
     public var apiKey: String?
 
     public init(
@@ -57,5 +58,20 @@ public struct OpenAPI: LanguageModelService, OpenAPIBase {
             method: "POST",
             requestBody: request.toJSON().data(using: .utf8)
         )
+    }
+
+    public func getModels() async -> Result<[OpenAIModel], APIError> {
+        let models = await sendRequest(
+            for: OpenAIModelList.self, 
+            path: "/models", 
+            method: "GET"
+        )
+
+        switch models {
+        case .success(let modelList): 
+            return .success(modelList.data)
+        case .failure(let error): 
+            return .failure(error)
+        }
     }
 }

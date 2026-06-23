@@ -8,7 +8,7 @@ public class OpenRouterModelList: Codable {
     }
 }
 
-public class OpenRouterModel: Codable {
+public class OpenRouterModel: APIModel, Codable {
     public let id: String
     public let huggingFaceId: String?
     public let name: String

@@ -8,7 +8,7 @@
 
 import Foundation
 
-/// manager class to handle API calls to different services. 
+/// manager class to handle API calls to different services.
 /// Kobold has to be "unique" and have a completely different API so we cant return OpenAI compliant responses....
 public class APIManager<T: LanguageModelService> {
     private let api: T
@@ -61,7 +61,17 @@ extension APIManager where T: OpenAPIBase {
             return .failure(.invalidService)
         }
 
-        return .success(api.selectedModel)
+        do {
+            let models = try await api.getModels().get()
+            if let selectedModel = api.selectedModel, let model = models.first(where: { $0.id == selectedModel })
+            {
+                return .success(model.id)
+            } else {
+                return .failure(.invalidService)
+            }
+        } catch (let error) {
+            return .failure(error)
+        }
     }
 
     public func sendMessage(builder: ChatCompletionRequestBuilder) async -> Result<ModelResponse, APIError> {
@@ -81,6 +91,14 @@ extension APIManager where T: OpenAPIBase {
         }
 
         return api.streamMessage(builder: builder)
+    }
+
+    public func getAvailableModels() async -> Result<[OpenAIModel], APIError> {
+        guard let api = api as? OpenAPI else {
+            return .failure(.invalidService)
+        }
+
+        return await api.getModels()
     }
 }
 
@@ -120,7 +138,8 @@ extension APIManager where T: KoboldAPIBase {
         return api.streamMessage(builder: builder)
     }
 
-    public func sendMessage(builder: KoboldRequestBuilder) async -> Result<ModelResponse, APIError> {
+    public func sendMessage(builder: KoboldRequestBuilder) async -> Result<ModelResponse, APIError>
+    {
         guard let api = api as? KoboldAPI else {
             return .failure(.invalidService)
         }
@@ -144,7 +163,7 @@ public struct ModelResponse: ResponseModel, @unchecked Sendable {
     public var streaming: Bool?
     public var disconnect: Bool = false
     public var rawResponse: Codable?
-    
+
     public init<T: Codable>(
         role: String? = "assistant",
         text: String? = nil,
@@ -165,7 +184,7 @@ public struct ModelResponse: ResponseModel, @unchecked Sendable {
         self.rawResponse = rawResponse
     }
 
-    // Init for non generic responses.. pretty much errors 
+    // Init for non generic responses.. pretty much errors
     public init(
         role: String? = "assistant",
         text: String? = nil,
@@ -184,7 +203,7 @@ public struct ModelResponse: ResponseModel, @unchecked Sendable {
         self.disconnect = disconnect
         self.rawResponse = nil
     }
-    
+
     /// Attempts to cast the rawResponse back to its original type
     /// - Returns: The original response type if casting succeeds, nil otherwise
     public func getRawResponse<T: Codable>() -> T? {

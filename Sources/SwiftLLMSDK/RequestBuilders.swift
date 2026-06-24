@@ -26,6 +26,8 @@ public struct OpenRouterRequestBuilder: EncodableRequestBuilder {
     public var frequencyPenalty: Double?
     public var presencePenalty: Double?
     public var stream: Bool? = nil
+    public var reasoningEffort: OpenRouterReasoningEffort?
+    public var excludeThinking: Bool? 
 
     // System context
     public var systemPromptTemplate: String?
@@ -47,6 +49,8 @@ public struct OpenRouterRequestBuilder: EncodableRequestBuilder {
         frequencyPenalty: Double? = nil,
         presencePenalty: Double? = nil,
         stream: Bool? = nil,
+        excludeThinking: Bool? = false,
+        reasoningEffort: OpenRouterReasoningEffort? = .medium,
         systemPromptTemplate: String? = nil,
         characterDescription: String? = nil,
         characterPersonality: String? = nil,
@@ -65,6 +69,8 @@ public struct OpenRouterRequestBuilder: EncodableRequestBuilder {
         self.frequencyPenalty = frequencyPenalty
         self.presencePenalty = presencePenalty
         self.stream = stream
+        self.excludeThinking = excludeThinking
+        self.reasoningEffort = reasoningEffort
         self.systemPromptTemplate = systemPromptTemplate
         self.characterDescription = characterDescription
         self.characterPersonality = characterPersonality
@@ -102,7 +108,9 @@ public struct OpenRouterRequestBuilder: EncodableRequestBuilder {
             repetitionPenalty: repetitionPenalty,
             stream: stream,
             presencePenalty: presencePenalty,
-            frequencyPenalty: frequencyPenalty
+            frequencyPenalty: frequencyPenalty,
+            excludeReasoning: excludeThinking,
+            reasoningEffort: reasoningEffort,
         )
     }
 }
@@ -217,6 +225,7 @@ public struct ChatCompletionRequestBuilder: EncodableRequestBuilder {
     public var frequencyPenalty: Double?
     public var presencePenalty: Double?
     public var stream: Bool? = nil
+    public var reasoningEffort: OpenRouterReasoningEffort? 
 
     // System context
     public var systemPromptTemplate: String?
@@ -235,6 +244,7 @@ public struct ChatCompletionRequestBuilder: EncodableRequestBuilder {
         frequencyPenalty: Double? = nil,
         presencePenalty: Double? = nil,
         stream: Bool? = nil,
+        reasoningEffort: OpenRouterReasoningEffort = .medium,
         systemPromptTemplate: String? = nil,
         characterDescription: String? = nil,
         characterPersonality: String? = nil,
@@ -249,6 +259,7 @@ public struct ChatCompletionRequestBuilder: EncodableRequestBuilder {
         self.frequencyPenalty = frequencyPenalty
         self.presencePenalty = presencePenalty
         self.stream = stream
+        self.reasoningEffort = reasoningEffort
         self.systemPromptTemplate = systemPromptTemplate
         self.characterDescription = characterDescription
         self.characterPersonality = characterPersonality
@@ -284,7 +295,7 @@ public struct ChatCompletionRequestBuilder: EncodableRequestBuilder {
             presencePenalty: presencePenalty,
             frequencyPenalty: frequencyPenalty,
             excludeReasoning: nil,
-            reasoningEffort: nil
+            reasoningEffort: reasoningEffort
         )
     }
 }

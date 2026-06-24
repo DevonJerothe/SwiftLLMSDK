@@ -20,17 +20,17 @@ public class OpenRouterResponse {
         self.promptTokens = promptTokens
         self.role = role
         self.responseContent = responseContent
-    }    
+    }
 }
 
 // MARK: - API Response Model
 public class ChatCompletionResponse: Codable {
-    public var id: String? 
-    public var provider: String? 
+    public var id: String?
+    public var provider: String?
     public var model: String?
     public var object: String?
     public var created: Int?
-    public var systemFingerprint: String? 
+    public var systemFingerprint: String?
     public var usage: ChatCompletionUsage?
     public var choices: [ChatCompletionChoice]?
 
@@ -73,10 +73,19 @@ public class ChatCompletionChoice: Codable {
 }
 
 public class ChatCompletionResponseMessage: Codable {
-    public var role: String? 
-    public var content: String? 
+    public var role: String?
+    public var content: String?
     public var refusal: String?
-    public var reasoning: String? 
+    public var reasoning: String?
+    public var reasoningContent: String?
+
+    enum CodingKeys: String, CodingKey {
+        case role
+        case content
+        case refusal
+        case reasoning
+        case reasoningContent = "reasoning_content"
+    }
 }
 
 extension ChatCompletionResponse {
@@ -99,9 +108,12 @@ extension ChatCompletionResponse {
     }
 
     public func toModelResponse() -> ModelResponse {
+        let message = choices?.first?.message
+        let reasoning = message?.reasoningContent ?? message?.reasoning
         return ModelResponse(
-            role: choices?.first?.message?.role ?? "assistant",
-            text: choices?.first?.message?.content,
+            role: message?.role ?? "assistant",
+            text: message?.content,
+            reasoning: reasoning,
             responseTokens: usage?.completionTokens,
             promptTokens: usage?.promptTokens,
             rawResponse: self
@@ -138,12 +150,14 @@ public class ChatCompletionStreamDelta: Codable, @unchecked Sendable {
     public var role: String?
     public var content: String?
     public var reasoning: String?
+    public var reasoningContent: String?
     public var reasoningDetails: [ChatCompletionReasoningDetail]?
 
     enum CodingKeys: String, CodingKey {
         case role
         case content
         case reasoning
+        case reasoningContent = "reasoning_content"
         case reasoningDetails = "reasoning_details"
     }
 }
@@ -155,20 +169,38 @@ public class ChatCompletionReasoningDetail: Codable, @unchecked Sendable {
     public var index: Int?
 }
 
+extension ChatCompletionStreamDelta {
+    /// Returns the reasoning text for this delta, regardless of which API shape
+    /// produced it. OpenRouter streams reasoning via `reasoning_details`, while
+    /// OpenAI-compatible APIs stream it via the `reasoning_content` string.
+    public var reasoningText: String? {
+        if let reasoningContent, !reasoningContent.isEmpty {
+            return reasoningContent
+        }
+        if let reasoning, !reasoning.isEmpty {
+            return reasoning
+        }
+        if let details = reasoningDetails, !details.isEmpty {
+            return details.compactMap { $0.text }.joined()
+        }
+        return nil
+    }
+}
+
 // MARK: - OpenRouter API Key Response
 public class OpenRouterAPIKeyResponse: Codable {
     var data: OpenRouterAPIKeyData?
 }
 
 public class OpenRouterAPIKeyData: Codable {
-    var label: String 
+    var label: String
     var usage: Double
     var isFreeTier: Bool
     var isProvisioningKey: Bool
     var limit: Double?
-    var limitRemaining: Double? 
+    var limitRemaining: Double?
     var rateLimit: OpenRouterRateLimit?
-    
+
     enum CodingKeys: String, CodingKey {
         case label
         case usage

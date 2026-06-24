@@ -28,14 +28,18 @@ extension APIManager where T: OpenRouterBase {
         return await api.checkAPIKey()
     }
 
-    public func sendMessage(builder: OpenRouterRequestBuilder) async -> Result<ModelResponse, APIError> {
+    public func sendMessage(builder: OpenRouterRequestBuilder) async -> Result<
+        ModelResponse, APIError
+    > {
         guard let api = api as? OpenRouterAPI else {
             return .failure(.invalidService)
         }
         return await api.sendMessage(builder: builder)
     }
 
-    public func streamMessage(builder: OpenRouterRequestBuilder) -> AsyncStream<Result<ModelResponse, APIError>> {
+    public func streamMessage(builder: OpenRouterRequestBuilder) -> AsyncStream<
+        Result<ModelResponse, APIError>
+    > {
         guard let api = api as? OpenRouterAPI else {
             return AsyncStream { continuation in
                 continuation.yield(.failure(.invalidService))
@@ -63,7 +67,8 @@ extension APIManager where T: OpenAPIBase {
 
         do {
             let models = try await api.getModels().get()
-            if let selectedModel = api.selectedModel, let model = models.first(where: { $0.id == selectedModel })
+            if let selectedModel = api.selectedModel,
+                let model = models.first(where: { $0.id == selectedModel })
             {
                 return .success(model.id)
             } else {
@@ -74,7 +79,9 @@ extension APIManager where T: OpenAPIBase {
         }
     }
 
-    public func sendMessage(builder: ChatCompletionRequestBuilder) async -> Result<ModelResponse, APIError> {
+    public func sendMessage(builder: ChatCompletionRequestBuilder) async -> Result<
+        ModelResponse, APIError
+    > {
         guard let api = api as? OpenAPI else {
             return .failure(.invalidService)
         }
@@ -82,7 +89,9 @@ extension APIManager where T: OpenAPIBase {
         return await api.sendMessage(builder: builder)
     }
 
-    public func streamMessage(builder: ChatCompletionRequestBuilder) -> AsyncStream<Result<ModelResponse, APIError>> {
+    public func streamMessage(builder: ChatCompletionRequestBuilder) -> AsyncStream<
+        Result<ModelResponse, APIError>
+    > {
         guard let api = api as? OpenAPI else {
             return AsyncStream { continuation in
                 continuation.yield(.failure(.invalidService))
@@ -128,7 +137,9 @@ extension APIManager where T: KoboldAPIBase {
         return await api.getMaxContextLength()
     }
 
-    public func streamMessage(builder: KoboldRequestBuilder) -> AsyncStream<Result<ModelResponse, APIError>> {
+    public func streamMessage(builder: KoboldRequestBuilder) -> AsyncStream<
+        Result<ModelResponse, APIError>
+    > {
         guard let api = api as? KoboldAPI else {
             return AsyncStream { continuation in
                 continuation.yield(.failure(.invalidService))
@@ -158,9 +169,16 @@ public struct ModelResponse: ResponseModel, @unchecked Sendable {
     public var role: String?
     public var text: String?
     public var deltaText: String?
+    public var reasoning: String?
+    public var deltaReasoning: String?
     public var responseTokens: Int?
     public var promptTokens: Int?
     public var streaming: Bool?
+    /// True while the model is still emitting reasoning ("thinking") deltas and
+    /// has not yet begun streaming response content. Toggles to false once the
+    /// first content delta arrives (or when the stream finishes). Only applies
+    /// to OpenRouter/OpenAI-compatible APIs until chat completion is added for Kobold
+    public var isThinking: Bool = false
     public var disconnect: Bool = false
     public var rawResponse: Codable?
 
@@ -168,18 +186,24 @@ public struct ModelResponse: ResponseModel, @unchecked Sendable {
         role: String? = "assistant",
         text: String? = nil,
         deltaText: String? = nil,
+        reasoning: String? = nil,
+        deltaReasoning: String? = nil,
         responseTokens: Int? = nil,
         promptTokens: Int? = nil,
         streaming: Bool? = false,
+        isThinking: Bool = false,
         disconnect: Bool = false,
         rawResponse: T
     ) {
         self.role = role
         self.text = text
         self.deltaText = deltaText
+        self.reasoning = reasoning
+        self.deltaReasoning = deltaReasoning
         self.responseTokens = responseTokens
         self.promptTokens = promptTokens
         self.streaming = streaming
+        self.isThinking = isThinking
         self.disconnect = disconnect
         self.rawResponse = rawResponse
     }
@@ -189,17 +213,23 @@ public struct ModelResponse: ResponseModel, @unchecked Sendable {
         role: String? = "assistant",
         text: String? = nil,
         deltaText: String? = nil,
+        reasoning: String? = nil,
+        deltaReasoning: String? = nil,
         responseTokens: Int? = nil,
         promptTokens: Int? = nil,
         streaming: Bool? = false,
+        isThinking: Bool = false,
         disconnect: Bool = false
     ) {
         self.role = role
         self.text = text
         self.deltaText = deltaText
+        self.reasoning = reasoning
+        self.deltaReasoning = deltaReasoning
         self.responseTokens = responseTokens
         self.promptTokens = promptTokens
         self.streaming = streaming
+        self.isThinking = isThinking
         self.disconnect = disconnect
         self.rawResponse = nil
     }

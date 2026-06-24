@@ -3,10 +3,10 @@ import Foundation
 public protocol LanguageModelService {
     // associatedtype ResponseType: ModelResponse
 
-    var urlSession: URLSession { get}
+    var urlSession: URLSession { get }
     var baseURL: String { get }
     var timeoutInterval: TimeInterval { get }
-    var apiKey: String? { get}
+    var apiKey: String? { get }
 }
 
 extension LanguageModelService {
@@ -31,7 +31,7 @@ extension LanguageModelService {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("JAX AI", forHTTPHeaderField: "X-Title")
         request.setValue("https://jax-ai-com.l.ink/", forHTTPHeaderField: "HTTP-Referer")
-        
+
         if let apiKey {
             request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         }
@@ -46,7 +46,7 @@ extension LanguageModelService {
 
         Task(priority: .medium) {
             do {
-                let (bytes, response) = try await URLSession.shared.bytes(for: request) 
+                let (bytes, response) = try await URLSession.shared.bytes(for: request)
                 guard let httpResponse = response as? HTTPURLResponse else {
                     continuation.yield(.failure(.invalidResponse))
                     continuation.finish()
@@ -58,46 +58,107 @@ extension LanguageModelService {
                     return
                 }
 
-                var accumulatedText = "" 
+                var accumulatedText = ""
+                var accumulatedReasoning = ""
+                // Tracks whether we are currently in the "thinking" phase. Toggles
+                // to true on the first reasoning delta, and back to false as soon
+                // as response content deltas begin arriving.
+                var isThinking = false
                 for try await line in bytes.lines {
-                    guard line.hasPrefix("data:") else { continue}
+                    guard line.hasPrefix("data:") else { continue }
                     let payload = line.dropFirst(5).trimmingCharacters(in: .whitespaces)
 
-                    // We need to handle the different types of responses here. 
+                    // We need to handle the different types of responses here.
                     // OpenRouter indicates the end of the response with [DONE]
                     if payload == "[DONE]" {
-                        let final = ModelResponse(role: "assistant", text: accumulatedText, responseTokens: nil, promptTokens: nil, streaming: false, rawResponse: ChatCompletionResponse())
+                        let final = ModelResponse(
+                            role: "assistant", text: accumulatedText,
+                            reasoning: accumulatedReasoning, responseTokens: nil, promptTokens: nil,
+                            streaming: false, isThinking: false,
+                            rawResponse: ChatCompletionResponse())
                         continuation.yield(.success(final))
                         continuation.finish()
                         break
                     }
                     if let jsonData = payload.data(using: .utf8) {
-                        // Handle the different response types based on the model type 
-                        let decoder = JSONDecoder() 
+                        // Handle the different response types based on the model type
+                        let decoder = JSONDecoder()
                         if isOpenRouterAPI {
-                            let chunk = try decoder.decode(ChatCompletionStreamChunk.self, from: jsonData)
-                            let deltaText = chunk.choices?.first?.delta?.content ?? ""
+                            let chunk = try decoder.decode(
+                                ChatCompletionStreamChunk.self, from: jsonData)
+                            let delta = chunk.choices?.first?.delta
+                            let deltaText = delta?.content ?? ""
+                            let deltaReasoning = delta?.reasoningText ?? ""
+
+                            if !deltaReasoning.isEmpty {
+                                accumulatedReasoning += deltaReasoning
+                                isThinking = true
+                            }
                             if !deltaText.isEmpty {
                                 accumulatedText += deltaText
-                                let partial = ModelResponse(role: chunk.choices?.first?.delta?.role ?? "assistant", text: accumulatedText, deltaText: deltaText, responseTokens: nil, promptTokens: nil, streaming: true, rawResponse: chunk)
+                                // Once content starts streaming, reasoning is done.
+                                isThinking = false
+                            }
+
+                            if !deltaText.isEmpty || !deltaReasoning.isEmpty {
+                                let partial = ModelResponse(
+                                    role: delta?.role ?? "assistant",
+                                    text: accumulatedText,
+                                    deltaText: deltaText.isEmpty ? nil : deltaText,
+                                    reasoning: accumulatedReasoning,
+                                    deltaReasoning: deltaReasoning.isEmpty ? nil : deltaReasoning,
+                                    responseTokens: nil,
+                                    promptTokens: nil,
+                                    streaming: true,
+                                    isThinking: isThinking,
+                                    rawResponse: chunk
+                                )
                                 continuation.yield(.success(partial))
                             }
                         } else if isOpenAPI {
-                            let chunk = try decoder.decode(ChatCompletionStreamChunk.self, from: jsonData)
-                            let deltaText = chunk.choices?.first?.delta?.content ?? ""
+                            let chunk = try decoder.decode(
+                                ChatCompletionStreamChunk.self, from: jsonData)
+                            let delta = chunk.choices?.first?.delta
+                            let deltaText = delta?.content ?? ""
+                            let deltaReasoning = delta?.reasoningText ?? ""
+
+                            if !deltaReasoning.isEmpty {
+                                accumulatedReasoning += deltaReasoning
+                                isThinking = true
+                            }
                             if !deltaText.isEmpty {
                                 accumulatedText += deltaText
-                                let partial = ModelResponse(role: chunk.choices?.first?.delta?.role ?? "assistant", text: accumulatedText, deltaText: deltaText, responseTokens: nil, promptTokens: nil, streaming: true, rawResponse: chunk)
+                                // Once content starts streaming, reasoning is done.
+                                isThinking = false
+                            }
+
+                            if !deltaText.isEmpty || !deltaReasoning.isEmpty {
+                                let partial = ModelResponse(
+                                    role: delta?.role ?? "assistant",
+                                    text: accumulatedText,
+                                    deltaText: deltaText.isEmpty ? nil : deltaText,
+                                    reasoning: accumulatedReasoning,
+                                    deltaReasoning: deltaReasoning.isEmpty ? nil : deltaReasoning,
+                                    responseTokens: nil,
+                                    promptTokens: nil,
+                                    streaming: true,
+                                    isThinking: isThinking,
+                                    rawResponse: chunk
+                                )
                                 continuation.yield(.success(partial))
                             }
-                        } else if isKoboldAPI {                    
-                            let chunk: KoboldStreamChunk = try decoder.decode(KoboldStreamChunk.self, from: jsonData)
+                        } else if isKoboldAPI {
+                            let chunk: KoboldStreamChunk = try decoder.decode(
+                                KoboldStreamChunk.self, from: jsonData)
                             let deltaText = chunk.token ?? ""
 
-                            // Check if the response is done 
+                            // Check if the response is done
                             if chunk.finishReason == "stop" || chunk.finishReason == "length" {
                                 accumulatedText += deltaText
-                                let final = ModelResponse(role: "assistant", text: accumulatedText, deltaText: deltaText, responseTokens: nil, promptTokens: nil, streaming: false, rawResponse: ChatCompletionResponse())
+                                let final = ModelResponse(
+                                    role: "assistant", text: accumulatedText, deltaText: deltaText,
+                                    responseTokens: nil, promptTokens: nil, streaming: false,
+                                    rawResponse: ChatCompletionResponse())
                                 continuation.yield(.success(final))
                                 continuation.finish()
                                 break
@@ -105,7 +166,10 @@ extension LanguageModelService {
 
                             if !deltaText.isEmpty {
                                 accumulatedText += deltaText
-                                let partial = ModelResponse(role: "assistant", text: accumulatedText, deltaText: deltaText, responseTokens: nil, promptTokens: nil, streaming: true, rawResponse: chunk)
+                                let partial = ModelResponse(
+                                    role: "assistant", text: accumulatedText, deltaText: deltaText,
+                                    responseTokens: nil, promptTokens: nil, streaming: true,
+                                    rawResponse: chunk)
                                 continuation.yield(.success(partial))
                             }
                         }
@@ -114,7 +178,7 @@ extension LanguageModelService {
             } catch let error as URLError where error.code == .timedOut {
                 continuation.yield(.failure(.timeout))
                 continuation.finish()
-            } catch ( _ ) {
+            } catch (_) {
                 continuation.yield(.failure(.invalidData))
                 continuation.finish()
                 return
@@ -151,26 +215,25 @@ extension LanguageModelService {
             if let requestBody {
                 request.httpBody = requestBody
             }
-            
+
             // Send the request
             let (data, response) = try await urlSession.data(for: request)
-            
+
             // Check response status
             guard let httpResponse = response as? HTTPURLResponse else {
                 return .failure(.invalidResponse)
             }
-            
+
             // Check for successful status code (200-299)
             if !(200...299).contains(httpResponse.statusCode) {
                 return .failure(.serverError(code: httpResponse.statusCode))
             }
-            
+
             // Decode the response
             let decoder = JSONDecoder()
             // TODO: Make sure all models are manually using coding keys
             // decoder.keyDecodingStrategy = .convertFromSnakeCase
 
-            
             do {
                 let decodedResponse = try decoder.decode(T.self, from: data)
                 return .success(decodedResponse)
@@ -178,7 +241,7 @@ extension LanguageModelService {
                 return .failure(.decodingError)
             }
         } catch let error as URLError where error.code == .timedOut {
-            return .failure(.timeout) // Handle timeout error
+            return .failure(.timeout)  // Handle timeout error
         } catch {
             return .failure(.invalidData)
         }
@@ -213,7 +276,7 @@ extension LanguageModelService {
             }
 
         } catch let error as URLError where error.code == .timedOut {
-            return .failure(.timeout) // Handle timeout error
+            return .failure(.timeout)  // Handle timeout error
         } catch {
             return .failure(.invalidData)
         }
@@ -247,10 +310,9 @@ extension LanguageModelService {
                 return .failure(.decodingError)
             }
         } catch let error as URLError where error.code == .timedOut {
-            return .failure(.timeout) // Handle timeout error
+            return .failure(.timeout)  // Handle timeout error
         } catch {
             return .failure(.invalidData)
         }
     }
 }
-

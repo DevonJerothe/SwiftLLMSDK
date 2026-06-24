@@ -1,6 +1,7 @@
 import Foundation
 
 public enum OpenRouterReasoningEffort: String, Codable {
+    case none = "none"
     case low = "low"
     case medium = "medium"
     case high = "high"
@@ -22,6 +23,7 @@ public class ChatCompletionRequest: Codable {
     public var frequencyPenalty: Double?
     public var seed: Int?
     public var reasoning: OpenRouterReasoning?
+    public var reasoningEffort: OpenRouterReasoningEffort?
 
     public init(
         model: String,
@@ -38,7 +40,7 @@ public class ChatCompletionRequest: Codable {
         presencePenalty: Double? = nil,
         frequencyPenalty: Double? = nil,
         seed: Int? = nil,
-        excludeReasoning: Bool? = true, 
+        excludeReasoning: Bool? = false, 
         reasoningEffort: OpenRouterReasoningEffort? = .medium
     ) {
         self.model = model
@@ -55,6 +57,7 @@ public class ChatCompletionRequest: Codable {
         self.presencePenalty = presencePenalty
         self.frequencyPenalty = frequencyPenalty
         self.seed = seed
+        self.reasoningEffort = reasoningEffort
 
         if reasoningEffort != nil || excludeReasoning != nil {
             self.reasoning = OpenRouterReasoning(

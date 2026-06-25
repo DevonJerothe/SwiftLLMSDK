@@ -21,19 +21,19 @@ public struct KoboldAPI: LanguageModelService, KoboldAPIBase {
     }
 
     public func getMaxContextLength() async -> Result<Int, APIError> {
-        await getInt(endpoint: "/api/extra/true_max_context_length")
+        await getInt(endpoint: "/api/extra/true_max_context_length", provider: .kobold)
     }
 
     public func getMaxLength() async -> Result<Int, APIError> {
-        await getInt(endpoint: "/api/v1/config/max_length")
+        await getInt(endpoint: "/api/v1/config/max_length", provider: .kobold)
     }
 
     public func getVersion() async -> Result<String, APIError> {
-        await getString(endpoint: "/api/v1/info/version")
+        await getString(endpoint: "/api/v1/info/version", provider: .kobold)
     }
 
     public func getModel() async -> Result<String, APIError> {
-        await getString(endpoint: "/api/v1/model")
+        await getString(endpoint: "/api/v1/model", provider: .kobold)
     }
 
     public func countTokens(text: String) async -> Result<Int, APIError> {
@@ -47,6 +47,7 @@ public struct KoboldAPI: LanguageModelService, KoboldAPIBase {
 
         let result = await sendRequest(
             for: IntResponse.self,
+            provider: .kobold,
             path: "/api/extra/tokencount", 
             method: "POST", 
             requestBody: jsonData
@@ -64,7 +65,7 @@ public struct KoboldAPI: LanguageModelService, KoboldAPIBase {
         let requestModel = builder.build()
 
         return sendStreamedRequest(
-            forAPI: KoboldAPI.self,
+            provider: .kobold,
             path: "/api/extra/generate/stream",
             method: "POST",
             requestBody: requestModel.toJSON().data(using: .utf8)
@@ -75,7 +76,7 @@ public struct KoboldAPI: LanguageModelService, KoboldAPIBase {
         let koboldRequest = promptModel.buildKoboldBody()
         let koboldRequestData = koboldRequest.toJSON().data(using: .utf8)
 
-        let result = await sendRequest(for: KoboldAPIResponse.self, path: "/api/v1/generate", method: "POST", requestBody: koboldRequestData)
+        let result = await sendRequest(for: KoboldAPIResponse.self, provider: .kobold, path: "/api/v1/generate", method: "POST", requestBody: koboldRequestData)
 
         switch result {
         case .success(let response):
@@ -92,6 +93,7 @@ public struct KoboldAPI: LanguageModelService, KoboldAPIBase {
 
         let result = await sendRequest(
             for: KoboldAPIResponse.self,
+            provider: .kobold,
             path: "/api/v1/generate",
             method: "POST",
             requestBody: koboldRequestData

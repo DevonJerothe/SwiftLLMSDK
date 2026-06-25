@@ -34,6 +34,7 @@ public struct OpenAPI: LanguageModelService, OpenAPIBase {
 
         let result = await sendRequest(
             for: ChatCompletionResponse.self,
+            provider: .openAICompatible,
             path: "/chat/completions",
             method: "POST",
             requestBody: requestData
@@ -53,7 +54,7 @@ public struct OpenAPI: LanguageModelService, OpenAPIBase {
         let request = requestBuilder.build()
 
         return sendStreamedRequest(
-            forAPI: OpenAPI.self,
+            provider: .openAICompatible,
             path: "/chat/completions",
             method: "POST",
             requestBody: request.toJSON().data(using: .utf8)
@@ -63,6 +64,7 @@ public struct OpenAPI: LanguageModelService, OpenAPIBase {
     public func getModels() async -> Result<[OpenAIModel], APIError> {
         let models = await sendRequest(
             for: OpenAIModelList.self, 
+            provider: .openAICompatible,
             path: "/models", 
             method: "GET"
         )

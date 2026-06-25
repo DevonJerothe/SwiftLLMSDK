@@ -7,6 +7,7 @@ public enum APIError: Error, LocalizedError {
     case decodingError
     case timeout
     case serverError(code: Int)
+    case llmError(LLMError)
     case invalidService
     case unsupportedURLImport
 
@@ -24,6 +25,8 @@ public enum APIError: Error, LocalizedError {
             return "Timeout"
         case .serverError(code: let code):
             return "Server error (\(code))"
+        case .llmError(let error):
+            return error.message
         case .invalidService:
             return "Invalid service type"
         case .unsupportedURLImport:

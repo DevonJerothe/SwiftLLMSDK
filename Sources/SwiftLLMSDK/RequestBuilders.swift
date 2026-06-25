@@ -244,7 +244,7 @@ public struct ChatCompletionRequestBuilder: EncodableRequestBuilder {
         frequencyPenalty: Double? = nil,
         presencePenalty: Double? = nil,
         stream: Bool? = nil,
-        reasoningEffort: OpenRouterReasoningEffort = .medium,
+        reasoningEffort: OpenRouterReasoningEffort? = nil,
         systemPromptTemplate: String? = nil,
         characterDescription: String? = nil,
         characterPersonality: String? = nil,
@@ -299,4 +299,3 @@ public struct ChatCompletionRequestBuilder: EncodableRequestBuilder {
         )
     }
 }
-

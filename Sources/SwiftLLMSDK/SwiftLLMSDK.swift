@@ -12,7 +12,7 @@ public protocol LanguageModelService {
 extension LanguageModelService {
 
     func sendStreamedRequest(
-        forAPI: LanguageModelService.Type,
+        provider: LLMProvider,
         path: String,
         method: String,
         requestBody: Data? = nil
@@ -26,34 +26,47 @@ extension LanguageModelService {
             return stream
         }
 
-        var request = URLRequest(url: baseURL, timeoutInterval: timeoutInterval)
-        request.httpMethod = method
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("JAX AI", forHTTPHeaderField: "X-Title")
-        request.setValue("https://jax-ai-com.l.ink/", forHTTPHeaderField: "HTTP-Referer")
-
-        if let apiKey {
-            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        }
-
-        if let requestBody {
-            request.httpBody = requestBody
-        }
-
-        let isOpenRouterAPI = forAPI is OpenRouterAPI.Type
-        let isOpenAPI = forAPI is OpenAPI.Type
-        let isKoboldAPI = forAPI is KoboldAPI.Type
+        let session = urlSession
+        let timeout = timeoutInterval
+        let authorizationKey = apiKey
+        let body = requestBody
+        let requestMethod = method
+        let requestURL = baseURL
 
         Task(priority: .medium) {
             do {
-                let (bytes, response) = try await URLSession.shared.bytes(for: request)
+                var request = URLRequest(url: requestURL, timeoutInterval: timeout)
+                request.httpMethod = requestMethod
+                request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                request.setValue("JAX AI", forHTTPHeaderField: "X-Title")
+                request.setValue("https://jax-ai-com.l.ink/", forHTTPHeaderField: "HTTP-Referer")
+
+                if let authorizationKey {
+                    request.setValue("Bearer \(authorizationKey)", forHTTPHeaderField: "Authorization")
+                }
+
+                if let body {
+                    request.httpBody = body
+                }
+
+                let (bytes, response) = try await session.bytes(for: request)
                 guard let httpResponse = response as? HTTPURLResponse else {
                     continuation.yield(.failure(.invalidResponse))
                     continuation.finish()
                     return
                 }
-                guard (200...299).contains(httpResponse.statusCode) else {
-                    continuation.yield(.failure(.serverError(code: httpResponse.statusCode)))
+                if !(200...299).contains(httpResponse.statusCode) {
+                    var responseBody = ""
+                    for try await line in bytes.lines {
+                        responseBody += line
+                        responseBody += "\n"
+                    }
+                    let error = LLMErrorParser.parseHTTPError(
+                        provider: provider,
+                        statusCode: httpResponse.statusCode,
+                        data: Data(responseBody.utf8)
+                    )
+                    continuation.yield(.failure(.llmError(error)))
                     continuation.finish()
                     return
                 }
@@ -64,9 +77,20 @@ extension LanguageModelService {
                 // to true on the first reasoning delta, and back to false as soon
                 // as response content deltas begin arriving.
                 var isThinking = false
+                var currentEventName: String?
+                var didFinish = false
+
                 for try await line in bytes.lines {
+                    if line.isEmpty {
+                        currentEventName = nil
+                        continue
+                    }
+                    if line.hasPrefix("event:") {
+                        currentEventName = String(line.dropFirst(6)).trimmingCharacters(in: .whitespaces)
+                        continue
+                    }
                     guard line.hasPrefix("data:") else { continue }
-                    let payload = line.dropFirst(5).trimmingCharacters(in: .whitespaces)
+                    let payload = String(line.dropFirst(5)).trimmingCharacters(in: .whitespaces)
 
                     // We need to handle the different types of responses here.
                     // OpenRouter indicates the end of the response with [DONE]
@@ -78,110 +102,120 @@ extension LanguageModelService {
                             rawResponse: ChatCompletionResponse())
                         continuation.yield(.success(final))
                         continuation.finish()
+                        didFinish = true
                         break
                     }
+
+                    if let error = LLMErrorParser.parseStreamEventError(
+                        provider: provider,
+                        payload: payload,
+                        isErrorEvent: currentEventName == "error"
+                    ) {
+                        let final = ModelResponse(
+                            role: "assistant",
+                            text: accumulatedText,
+                            reasoning: accumulatedReasoning,
+                            streaming: false,
+                            isThinking: false,
+                            disconnect: true,
+                            error: error
+                        )
+                        continuation.yield(.success(final))
+                        continuation.finish()
+                        didFinish = true
+                        break
+                    }
+
                     if let jsonData = payload.data(using: .utf8) {
                         // Handle the different response types based on the model type
                         let decoder = JSONDecoder()
-                        if isOpenRouterAPI {
-                            let chunk = try decoder.decode(
-                                ChatCompletionStreamChunk.self, from: jsonData)
-                            let delta = chunk.choices?.first?.delta
-                            let deltaText = delta?.content ?? ""
-                            let deltaReasoning = delta?.reasoningText ?? ""
+                        do {
+                            if provider == .openRouter || provider == .openAICompatible {
+                                let chunk = try decoder.decode(
+                                    ChatCompletionStreamChunk.self, from: jsonData)
+                                let delta = chunk.choices?.first?.delta
+                                let deltaText = delta?.content ?? ""
+                                let deltaReasoning = delta?.reasoningText ?? ""
 
-                            if !deltaReasoning.isEmpty {
-                                accumulatedReasoning += deltaReasoning
-                                isThinking = true
-                            }
-                            if !deltaText.isEmpty {
-                                accumulatedText += deltaText
-                                // Once content starts streaming, reasoning is done.
-                                isThinking = false
-                            }
+                                if !deltaReasoning.isEmpty {
+                                    accumulatedReasoning += deltaReasoning
+                                    isThinking = true
+                                }
+                                if !deltaText.isEmpty {
+                                    accumulatedText += deltaText
+                                    // Once content starts streaming, reasoning is done.
+                                    isThinking = false
+                                }
 
-                            if !deltaText.isEmpty || !deltaReasoning.isEmpty {
-                                let partial = ModelResponse(
-                                    role: delta?.role ?? "assistant",
-                                    text: accumulatedText,
-                                    deltaText: deltaText.isEmpty ? nil : deltaText,
-                                    reasoning: accumulatedReasoning,
-                                    deltaReasoning: deltaReasoning.isEmpty ? nil : deltaReasoning,
-                                    responseTokens: nil,
-                                    promptTokens: nil,
-                                    streaming: true,
-                                    isThinking: isThinking,
-                                    rawResponse: chunk
-                                )
-                                continuation.yield(.success(partial))
-                            }
-                        } else if isOpenAPI {
-                            let chunk = try decoder.decode(
-                                ChatCompletionStreamChunk.self, from: jsonData)
-                            let delta = chunk.choices?.first?.delta
-                            let deltaText = delta?.content ?? ""
-                            let deltaReasoning = delta?.reasoningText ?? ""
+                                if !deltaText.isEmpty || !deltaReasoning.isEmpty {
+                                    let partial = ModelResponse(
+                                        role: delta?.role ?? "assistant",
+                                        text: accumulatedText,
+                                        deltaText: deltaText.isEmpty ? nil : deltaText,
+                                        reasoning: accumulatedReasoning,
+                                        deltaReasoning: deltaReasoning.isEmpty ? nil : deltaReasoning,
+                                        responseTokens: nil,
+                                        promptTokens: nil,
+                                        streaming: true,
+                                        isThinking: isThinking,
+                                        rawResponse: chunk
+                                    )
+                                    continuation.yield(.success(partial))
+                                }
+                            } else if provider == .kobold {
+                                let chunk: KoboldStreamChunk = try decoder.decode(
+                                    KoboldStreamChunk.self, from: jsonData)
+                                let deltaText = chunk.token ?? ""
 
-                            if !deltaReasoning.isEmpty {
-                                accumulatedReasoning += deltaReasoning
-                                isThinking = true
-                            }
-                            if !deltaText.isEmpty {
-                                accumulatedText += deltaText
-                                // Once content starts streaming, reasoning is done.
-                                isThinking = false
-                            }
+                                // Check if the response is done
+                                if chunk.finishReason == "stop" || chunk.finishReason == "length" {
+                                    accumulatedText += deltaText
+                                    let final = ModelResponse(
+                                        role: "assistant", text: accumulatedText, deltaText: deltaText,
+                                        responseTokens: nil, promptTokens: nil, streaming: false,
+                                        rawResponse: ChatCompletionResponse())
+                                    continuation.yield(.success(final))
+                                    continuation.finish()
+                                    didFinish = true
+                                    break
+                                }
 
-                            if !deltaText.isEmpty || !deltaReasoning.isEmpty {
-                                let partial = ModelResponse(
-                                    role: delta?.role ?? "assistant",
-                                    text: accumulatedText,
-                                    deltaText: deltaText.isEmpty ? nil : deltaText,
-                                    reasoning: accumulatedReasoning,
-                                    deltaReasoning: deltaReasoning.isEmpty ? nil : deltaReasoning,
-                                    responseTokens: nil,
-                                    promptTokens: nil,
-                                    streaming: true,
-                                    isThinking: isThinking,
-                                    rawResponse: chunk
-                                )
-                                continuation.yield(.success(partial))
+                                if !deltaText.isEmpty {
+                                    accumulatedText += deltaText
+                                    let partial = ModelResponse(
+                                        role: "assistant", text: accumulatedText, deltaText: deltaText,
+                                        responseTokens: nil, promptTokens: nil, streaming: true,
+                                        rawResponse: chunk)
+                                    continuation.yield(.success(partial))
+                                }
                             }
-                        } else if isKoboldAPI {
-                            let chunk: KoboldStreamChunk = try decoder.decode(
-                                KoboldStreamChunk.self, from: jsonData)
-                            let deltaText = chunk.token ?? ""
-
-                            // Check if the response is done
-                            if chunk.finishReason == "stop" || chunk.finishReason == "length" {
-                                accumulatedText += deltaText
-                                let final = ModelResponse(
-                                    role: "assistant", text: accumulatedText, deltaText: deltaText,
-                                    responseTokens: nil, promptTokens: nil, streaming: false,
-                                    rawResponse: ChatCompletionResponse())
-                                continuation.yield(.success(final))
-                                continuation.finish()
-                                break
-                            }
-
-                            if !deltaText.isEmpty {
-                                accumulatedText += deltaText
-                                let partial = ModelResponse(
-                                    role: "assistant", text: accumulatedText, deltaText: deltaText,
-                                    responseTokens: nil, promptTokens: nil, streaming: true,
-                                    rawResponse: chunk)
-                                continuation.yield(.success(partial))
-                            }
+                        } catch {
+                            let llmError = LLMErrorParser.decodingError(
+                                provider: provider,
+                                rawEvent: payload
+                            )
+                            let final = ModelResponse(
+                                role: "assistant",
+                                text: accumulatedText,
+                                reasoning: accumulatedReasoning,
+                                streaming: false,
+                                isThinking: false,
+                                disconnect: true,
+                                error: llmError
+                            )
+                            continuation.yield(.success(final))
+                            continuation.finish()
+                            didFinish = true
+                            break
                         }
                     }
                 }
-            } catch let error as URLError where error.code == .timedOut {
-                continuation.yield(.failure(.timeout))
+                if !didFinish {
+                    continuation.finish()
+                }
+            } catch {
+                continuation.yield(.failure(.llmError(LLMErrorParser.transportError(provider: provider, error: error))))
                 continuation.finish()
-            } catch (_) {
-                continuation.yield(.failure(.invalidData))
-                continuation.finish()
-                return
             }
         }
 
@@ -190,6 +224,22 @@ extension LanguageModelService {
 
     func sendRequest<T: Decodable>(
         for: T.Type,
+        path: String,
+        method: String,
+        requestBody: Data? = nil
+    ) async -> Result<T, APIError> {
+        await sendRequest(
+            for: T.self,
+            provider: .unknown,
+            path: path,
+            method: method,
+            requestBody: requestBody
+        )
+    }
+
+    func sendRequest<T: Decodable>(
+        for: T.Type,
+        provider: LLMProvider,
         path: String,
         method: String,
         requestBody: Data? = nil
@@ -226,7 +276,12 @@ extension LanguageModelService {
 
             // Check for successful status code (200-299)
             if !(200...299).contains(httpResponse.statusCode) {
-                return .failure(.serverError(code: httpResponse.statusCode))
+                let error = LLMErrorParser.parseHTTPError(
+                    provider: provider,
+                    statusCode: httpResponse.statusCode,
+                    data: data
+                )
+                return .failure(.llmError(error))
             }
 
             // Decode the response
@@ -238,16 +293,19 @@ extension LanguageModelService {
                 let decodedResponse = try decoder.decode(T.self, from: data)
                 return .success(decodedResponse)
             } catch {
-                return .failure(.decodingError)
+                let rawBody = LLMErrorParser.boundedString(from: data)
+                return .failure(.llmError(LLMErrorParser.decodingError(provider: provider, rawBody: rawBody)))
             }
-        } catch let error as URLError where error.code == .timedOut {
-            return .failure(.timeout)  // Handle timeout error
         } catch {
-            return .failure(.invalidData)
+            return .failure(.llmError(LLMErrorParser.transportError(provider: provider, error: error)))
         }
     }
 
     func getInt(endpoint: String) async -> Result<Int, APIError> {
+        await getInt(endpoint: endpoint, provider: .unknown)
+    }
+
+    func getInt(endpoint: String, provider: LLMProvider) async -> Result<Int, APIError> {
         guard let baseURL = URL(string: baseURL + endpoint) else {
             return .failure(.invalidURL)
         }
@@ -264,7 +322,12 @@ extension LanguageModelService {
             }
 
             if !(200...299).contains(httpResponse.statusCode) {
-                return .failure(.serverError(code: httpResponse.statusCode))
+                let error = LLMErrorParser.parseHTTPError(
+                    provider: provider,
+                    statusCode: httpResponse.statusCode,
+                    data: data
+                )
+                return .failure(.llmError(error))
             }
 
             do {
@@ -272,17 +335,20 @@ extension LanguageModelService {
                 let intResponse = try decoder.decode(IntResponse.self, from: data)
                 return .success(intResponse.value)
             } catch {
-                return .failure(.decodingError)
+                let rawBody = LLMErrorParser.boundedString(from: data)
+                return .failure(.llmError(LLMErrorParser.decodingError(provider: provider, rawBody: rawBody)))
             }
 
-        } catch let error as URLError where error.code == .timedOut {
-            return .failure(.timeout)  // Handle timeout error
         } catch {
-            return .failure(.invalidData)
+            return .failure(.llmError(LLMErrorParser.transportError(provider: provider, error: error)))
         }
     }
 
     func getString(endpoint: String) async -> Result<String, APIError> {
+        await getString(endpoint: endpoint, provider: .unknown)
+    }
+
+    func getString(endpoint: String, provider: LLMProvider) async -> Result<String, APIError> {
         guard let baseURL = URL(string: baseURL + endpoint) else {
             return .failure(.invalidURL)
         }
@@ -299,7 +365,12 @@ extension LanguageModelService {
             }
 
             if !(200...299).contains(httpResponse.statusCode) {
-                return .failure(.serverError(code: httpResponse.statusCode))
+                let error = LLMErrorParser.parseHTTPError(
+                    provider: provider,
+                    statusCode: httpResponse.statusCode,
+                    data: data
+                )
+                return .failure(.llmError(error))
             }
 
             do {
@@ -307,12 +378,11 @@ extension LanguageModelService {
                 let stringResponse = try decoder.decode(StringResponse.self, from: data)
                 return .success(stringResponse.result)
             } catch {
-                return .failure(.decodingError)
+                let rawBody = LLMErrorParser.boundedString(from: data)
+                return .failure(.llmError(LLMErrorParser.decodingError(provider: provider, rawBody: rawBody)))
             }
-        } catch let error as URLError where error.code == .timedOut {
-            return .failure(.timeout)  // Handle timeout error
         } catch {
-            return .failure(.invalidData)
+            return .failure(.llmError(LLMErrorParser.transportError(provider: provider, error: error)))
         }
     }
 }

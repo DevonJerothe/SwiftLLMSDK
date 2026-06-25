@@ -181,6 +181,7 @@ public struct ModelResponse: ResponseModel, @unchecked Sendable {
     public var isThinking: Bool = false
     public var disconnect: Bool = false
     public var rawResponse: Codable?
+    public var error: LLMError?
 
     public init<T: Codable>(
         role: String? = "assistant",
@@ -193,6 +194,7 @@ public struct ModelResponse: ResponseModel, @unchecked Sendable {
         streaming: Bool? = false,
         isThinking: Bool = false,
         disconnect: Bool = false,
+        error: LLMError? = nil,
         rawResponse: T
     ) {
         self.role = role
@@ -205,6 +207,7 @@ public struct ModelResponse: ResponseModel, @unchecked Sendable {
         self.streaming = streaming
         self.isThinking = isThinking
         self.disconnect = disconnect
+        self.error = error
         self.rawResponse = rawResponse
     }
 
@@ -219,7 +222,8 @@ public struct ModelResponse: ResponseModel, @unchecked Sendable {
         promptTokens: Int? = nil,
         streaming: Bool? = false,
         isThinking: Bool = false,
-        disconnect: Bool = false
+        disconnect: Bool = false,
+        error: LLMError? = nil
     ) {
         self.role = role
         self.text = text
@@ -231,6 +235,7 @@ public struct ModelResponse: ResponseModel, @unchecked Sendable {
         self.streaming = streaming
         self.isThinking = isThinking
         self.disconnect = disconnect
+        self.error = error
         self.rawResponse = nil
     }
 

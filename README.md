@@ -8,7 +8,7 @@ A unified Swift package for connecting to various Large Language Model (LLM) bac
 - **🤖 Character Card Support**: Built-in support for character cards with system prompts, personalities, and scenarios
 - **📥 ChubAI Import**: Direct import of character cards from Chub.ai and CharacterHub.org
 - **⚡ Async/Await**: Modern Swift concurrency with async/await
-- **🛡️ Type Safety**: Strong typing with Result types for error handling
+- **🛡️ Type Safety**: Strong typing with Result types and normalized provider error details
 - **🔧 Flexible Configuration**: Extensive customization options for model parameters
 
 ## Supported Providers
@@ -24,6 +24,12 @@ A unified Swift package for connecting to various Large Language Model (LLM) bac
 - **Purpose**: Local LLM inference server
 - **Features**: Direct HTTP connection to local instances
 - **Authentication**: No API key required (local connection)
+
+### OpenAI-Compatible APIs
+
+- **Purpose**: Connect to OpenAI-compatible chat completion endpoints
+- **Features**: Chat completions, streaming, model listing
+- **Authentication**: API key optional depending on endpoint
 
 ## Requirements
 
@@ -124,7 +130,13 @@ struct ChatView: View {
             for await result in apiManager.streamMessage(builder: builder) {
                 switch result {
                 case .success(let model):
-                    await MainActor.run { assistantText = model.text ?? "" }
+                    await MainActor.run {
+                        assistantText = model.text ?? ""
+
+                        if let error = model.error {
+                            print("stream ended with provider error: \(error.message)")
+                        }
+                    }
                 case .failure(let error):
                     print("stream error: \(error)")
                 }
@@ -309,6 +321,17 @@ let requestBuilder = OpenRouterRequestBuilder(
 
 ### Error Handling
 
+Provider errors are normalized into `LLMError`, so client apps do not need separate parsing logic for KoboldAPI, OpenRouter, or OpenAI-compatible endpoints. The normalized error includes:
+
+- `message` - User-facing provider message when available
+- `provider` - `.kobold`, `.openRouter`, `.openAICompatible`, or `.unknown`
+- `source` - `.http`, `.streamEvent`, `.transport`, `.decoding`, `.cancellation`, or `.sdk`
+- `category` - `.authentication`, `.authorization`, `.rateLimit`, `.quotaExceeded`, `.contextLength`, `.invalidRequest`, `.serverError`, `.networkError`, `.decodingError`, `.cancelled`, `.unavailable`, `.timeout`, or `.unknown`
+- `httpStatusCode`, `providerCode`, and `providerType` when available
+- `rawBody` or `rawEvent` for bounded debugging payloads
+
+Non-streaming provider failures are returned as `.failure(.llmError(error))`:
+
 ```swift
 let response = await apiManager.sendMessage(builder: requestBuilder)
 switch response {
@@ -324,16 +347,44 @@ case .success(let modelResponse):
     
 case .failure(let error):
     switch error {
+    case .llmError(let llmError):
+        print("Provider: \(llmError.provider)")
+        print("Category: \(llmError.category)")
+        print("Message: \(llmError.message)")
+
+        if let statusCode = llmError.httpStatusCode {
+            print("HTTP status: \(statusCode)")
+        }
     case .invalidURL:
         print("Invalid URL configuration")
     case .serverError(let code):
-        print("Server error with code: \(code)")
+        print("Legacy server error with code: \(code)")
     case .timeout:
-        print("Request timed out")
+        print("Legacy timeout")
     case .decodingError:
-        print("Failed to decode response")
+        print("Legacy decoding failure")
     default:
         print("Other error: \(error.localizedDescription)")
+    }
+}
+```
+
+Streaming provider errors can arrive after partial content has already been emitted. In that case, the stream yields one final successful `ModelResponse` with `error != nil`, `streaming == false`, and `disconnect == true`, then finishes. The final response preserves accumulated `text` and `reasoning` so the app can decide how to display partial output.
+
+```swift
+for await result in apiManager.streamMessage(builder: requestBuilder) {
+    switch result {
+    case .success(let modelResponse):
+        if let error = modelResponse.error {
+            print("Partial text: \(modelResponse.text ?? "")")
+            print("Stream failed: \(error.message)")
+            return
+        }
+
+        print("Partial text: \(modelResponse.text ?? "")")
+
+    case .failure(let error):
+        print("Stream setup or transport error: \(error.localizedDescription)")
     }
 }
 ```
@@ -349,16 +400,21 @@ Generic manager for handling API calls to different LLM services.
 **Methods:**
 
 - `sendMessage(builder: OpenRouterRequestBuilder) async -> Result<ModelResponse, APIError>`
+- `sendMessage(builder: ChatCompletionRequestBuilder) async -> Result<ModelResponse, APIError>`
 - `sendMessage(builder: KoboldRequestBuilder) async -> Result<ModelResponse, APIError>`
 - `streamMessage(builder: OpenRouterRequestBuilder) -> AsyncStream<Result<ModelResponse, APIError>>`
+- `streamMessage(builder: ChatCompletionRequestBuilder) -> AsyncStream<Result<ModelResponse, APIError>>`
 - `streamMessage(builder: KoboldRequestBuilder) -> AsyncStream<Result<ModelResponse, APIError>>`
-- `connect() async -> Result<String, APIError>` (OpenRouter/Kobold specific)
-- `getAvailableModels() async -> Result<[OpenRouterModel], APIError>` (OpenRouter only)
+- `connect() async -> Result<String, APIError>` (provider-specific)
+- `getAvailableModels() async -> Result<[OpenRouterModel], APIError>` (OpenRouter)
+- `getAvailableModels() async -> Result<[OpenAIModel], APIError>` (OpenAI-compatible)
 
 #### Request Builders
 
 - `OpenRouterRequestBuilder`: Build chat-completion requests for OpenRouter.
   - Fields include `model`, `messages`, `stop`, `temperature`, `topP`, `minP`, `topA`, `topK`, `maxTokens`, `repetitionPenalty`, `frequencyPenalty`, `presencePenalty`, `stream`, and optional system/character fields.
+- `ChatCompletionRequestBuilder`: Build generic OpenAI-compatible chat-completion requests.
+  - Fields include `model`, `messages`, `stop`, `temperature`, `topP`, `maxTokens`, `frequencyPenalty`, `presencePenalty`, `stream`, optional `reasoningEffort`, and optional system/character fields.
 - `KoboldRequestBuilder`: Build text-generation requests for KoboldCPP.
   - Fields include `prompt`, `memory`, `maxContextLength`, `maxLength`, `temperature`, `tfs`, `topA`, `topK`, `topP`, `minP`, `typical`, `repetitionPenalty`, `repetitionRange`, `repetitionSlope`, `stopSequence`, `trimStop`, `samplerOrder`, `promptTemplate`.
 
@@ -372,10 +428,12 @@ Unified response structure containing:
 - `role: String?` - Response role (usually "assistant")
 - `responseTokens: Int?` - Tokens used in response
 - `promptTokens: Int?` - Tokens used in prompt
+- `error: LLMError?` - Normalized provider or stream error, when a response carries an error
 - `streaming`: Bool? - If the response is currently streaming data
-- `rawResponse: Codable` - Original API response
+- `disconnect: Bool` - Indicates a stream should be treated as closed
+- `rawResponse: Codable?` - Original API response when available
 
-Note: Streaming uses `AsyncStream<Result<ModelResponse, APIError>>`. Each emission contains the accumulated `text` so far; the last emission is the final content.
+Note: Streaming uses `AsyncStream<Result<ModelResponse, APIError>>`. Each success emission contains the accumulated `text` so far. If a provider sends a mid-stream error event, the final emission is a `ModelResponse` with the accumulated text plus `error`.
 
 ## Contributing
 

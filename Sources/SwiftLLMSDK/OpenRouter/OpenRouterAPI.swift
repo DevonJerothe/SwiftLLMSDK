@@ -31,7 +31,7 @@ public struct OpenRouterAPI: LanguageModelService, OpenRouterBase {
         let openRouterRequest = promptModel.buildOpenRouterBody()
         let openRouterRequestData = openRouterRequest.toJSON().data(using: .utf8)
 
-        let result = await sendRequest(for: ChatCompletionResponse.self, path: "/chat/completions", method: "POST", requestBody: openRouterRequestData) 
+        let result = await sendRequest(for: ChatCompletionResponse.self, provider: .openRouter, path: "/chat/completions", method: "POST", requestBody: openRouterRequestData) 
 
         switch result {
         case .success(let response):
@@ -48,6 +48,7 @@ public struct OpenRouterAPI: LanguageModelService, OpenRouterBase {
 
         let result = await sendRequest(
             for: ChatCompletionResponse.self,
+            provider: .openRouter,
             path: "/chat/completions",
             method: "POST",
             requestBody: openRouterRequestData
@@ -69,7 +70,7 @@ public struct OpenRouterAPI: LanguageModelService, OpenRouterBase {
         let requestModel = requestBuilder.build()
 
         return sendStreamedRequest(
-            forAPI: OpenRouterAPI.self,
+            provider: .openRouter,
             path: "/chat/completions",
             method: "POST",
             requestBody: requestModel.toJSON().data(using: .utf8)
@@ -78,7 +79,7 @@ public struct OpenRouterAPI: LanguageModelService, OpenRouterBase {
 
     // TODO: Update this to return the actual Key info. May be useful for monitoring usage ect. 
     public func checkAPIKey() async -> Result<String, APIError> {
-        let result = await sendRequest(for: OpenRouterAPIKeyResponse.self, path: "/key", method: "GET")
+        let result = await sendRequest(for: OpenRouterAPIKeyResponse.self, provider: .openRouter, path: "/key", method: "GET")
         
         switch result {
         case .success(let response):
@@ -96,6 +97,7 @@ public struct OpenRouterAPI: LanguageModelService, OpenRouterBase {
 
         let models = await sendRequest(
             for: OpenRouterModelList.self,
+            provider: .openRouter,
             path: "/models",
             method: "GET"
         ) 

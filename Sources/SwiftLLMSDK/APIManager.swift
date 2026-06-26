@@ -20,12 +20,26 @@ public class APIManager<T: LanguageModelService> {
 
 // MARK: - OpenRouter Functions
 extension APIManager where T: OpenRouterBase {
+    public func checkConnection() async -> Result<ConnectionCheckResult, APIError> {
+        guard let api = api as? OpenRouterAPI else {
+            return .failure(.invalidService)
+        }
+
+        return await api.checkConnection()
+    }
+
     public func connect() async -> Result<String, APIError> {
         guard let api = api as? OpenRouterAPI else {
             return .failure(.invalidService)
         }
 
-        return await api.checkAPIKey()
+        let result = await api.checkConnection()
+        switch result {
+        case .success(let check):
+            return .success(check.model ?? api.selectedModel ?? check.message)
+        case .failure(let error):
+            return .failure(error)
+        }
     }
 
     public func sendMessage(builder: OpenRouterRequestBuilder) async -> Result<
@@ -60,21 +74,24 @@ extension APIManager where T: OpenRouterBase {
 
 // MARK: - OpenAI-Compatible Functions
 extension APIManager where T: OpenAPIBase {
+    public func checkConnection() async -> Result<ConnectionCheckResult, APIError> {
+        guard let api = api as? OpenAPI else {
+            return .failure(.invalidService)
+        }
+
+        return await api.checkConnection()
+    }
+
     public func connect() async -> Result<String, APIError> {
         guard let api = api as? OpenAPI else {
             return .failure(.invalidService)
         }
 
-        do {
-            let models = try await api.getModels().get()
-            if let selectedModel = api.selectedModel,
-                let model = models.first(where: { $0.id == selectedModel })
-            {
-                return .success(model.id)
-            } else {
-                return .failure(.invalidService)
-            }
-        } catch (let error) {
+        let result = await api.checkConnection()
+        switch result {
+        case .success(let check):
+            return .success(check.model ?? api.selectedModel ?? check.message)
+        case .failure(let error):
             return .failure(error)
         }
     }
@@ -113,12 +130,26 @@ extension APIManager where T: OpenAPIBase {
 
 // MARK: - Kobold Functions
 extension APIManager where T: KoboldAPIBase {
+    public func checkConnection() async -> Result<ConnectionCheckResult, APIError> {
+        guard let api = api as? KoboldAPI else {
+            return .failure(.invalidService)
+        }
+
+        return await api.checkConnection()
+    }
+
     public func connect() async -> Result<String, APIError> {
         guard let api = api as? KoboldAPI else {
             return .failure(.invalidService)
         }
 
-        return await api.getModel()
+        let result = await api.checkConnection()
+        switch result {
+        case .success(let check):
+            return .success(check.model ?? check.message)
+        case .failure(let error):
+            return .failure(error)
+        }
     }
 
     public func countTokens(text: String) async -> Result<Int, APIError> {

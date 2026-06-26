@@ -61,6 +61,41 @@ public struct OpenAPI: LanguageModelService, OpenAPIBase {
         )
     }
 
+    public func checkConnection() async -> Result<ConnectionCheckResult, APIError> {
+        guard let selectedModel else {
+            return .failure(.invalidService)
+        }
+
+        let builder = ChatCompletionRequestBuilder(
+            model: selectedModel,
+            messages: [RequestBodyMessages(role: .user, message: "ping")],
+            maxTokens: 1,
+            stream: false
+        )
+        let request = builder.build()
+
+        let result = await sendRequest(
+            for: ChatCompletionResponse.self,
+            provider: .openAICompatible,
+            path: "/chat/completions",
+            method: "POST",
+            requestBody: request.toJSON().data(using: .utf8)
+        )
+
+        switch result {
+        case .success(let response):
+            return .success(ConnectionCheckResult(
+                provider: .openAICompatible,
+                verification: .chatCompletion,
+                endpoint: "/chat/completions",
+                model: response.model ?? selectedModel,
+                message: "Chat completion probe succeeded."
+            ))
+        case .failure(let error):
+            return .failure(error)
+        }
+    }
+
     public func getModels() async -> Result<[OpenAIModel], APIError> {
         let models = await sendRequest(
             for: OpenAIModelList.self, 

@@ -6,7 +6,7 @@ A unified Swift package for connecting to various Large Language Model (LLM) bac
 
 - **🔗 Unified API Interface**: Single interface for multiple LLM providers
 - **🤖 Character Card Support**: Built-in support for character cards with system prompts, personalities, and scenarios
-- **📥 ChubAI Import**: Direct import of character cards from Chub.ai and CharacterHub.org
+- **📥 Character Import**: Import character cards and lore books from URLs, local data, PNG metadata, and JSON
 - **⚡ Async/Await**: Modern Swift concurrency with async/await
 - **🛡️ Type Safety**: Strong typing with Result types and normalized provider error details
 - **🔧 Flexible Configuration**: Extensive customization options for model parameters
@@ -16,19 +16,19 @@ A unified Swift package for connecting to various Large Language Model (LLM) bac
 ### OpenRouter
 
 - **Purpose**: Access to multiple LLM models through a single API
-- **Features**: Model listing, API key validation, chat completions
+- **Features**: Model listing, low-cost chat-completion connection checks, chat completions
 - **Authentication**: API key required
 
 ### KoboldCPP
 
 - **Purpose**: Local LLM inference server
-- **Features**: Direct HTTP connection to local instances
+- **Features**: Direct HTTP connection to local instances, fast model metadata connection checks
 - **Authentication**: No API key required (local connection)
 
 ### OpenAI-Compatible APIs
 
 - **Purpose**: Connect to OpenAI-compatible chat completion endpoints
-- **Features**: Chat completions, streaming, model listing
+- **Features**: Chat completions, streaming, model listing, low-cost chat-completion connection checks
 - **Authentication**: API key optional depending on endpoint
 
 ## Requirements
@@ -73,8 +73,8 @@ let apiManager = APIManager(forService: openRouterAPI)
 // Test connection
 let connectionResult = await apiManager.connect()
 switch connectionResult {
-case .success(let keyLabel):
-    print("Connected successfully: \(keyLabel)")
+case .success(let model):
+    print("Connected successfully using model: \(model)")
 case .failure(let error):
     print("Connection failed: \(error)")
 }
@@ -93,6 +93,28 @@ case .success(let modelResponse):
     print("Response: \(modelResponse.text ?? "No response")")
 case .failure(let error):
     print("Error: \(error)")
+}
+```
+
+### Connection Checks
+
+`connect()` remains available as a convenience method and returns a provider-specific string, usually the selected or active model. New code that needs more detail should use `checkConnection()`.
+
+For OpenRouter and OpenAI-compatible APIs, connection checks send a minimal non-streaming chat-completion probe to `/chat/completions`. The probe uses one user message (`"ping"`), `maxTokens: 1`, no character/system context, and no sampling options. This validates the same endpoint used by normal chat requests while keeping latency and token usage as low as practical.
+
+KoboldCPP uses `GET /api/v1/model` for the default check because local generation probes can be slow. The returned `ConnectionCheckResult` identifies this as `.serviceMetadata`, not `.chatCompletion`.
+
+```swift
+let checkResult = await apiManager.checkConnection()
+switch checkResult {
+case .success(let check):
+    print("Provider: \(check.provider)")
+    print("Check type: \(check.verification)")
+    print("Endpoint: \(check.endpoint)")
+    print("Model: \(check.model ?? "Unknown")")
+    print("Chat ready: \(check.isChatReady)")
+case .failure(let error):
+    print("Connection check failed: \(error)")
 }
 ```
 
@@ -243,44 +265,49 @@ let requestBuilder = KoboldRequestBuilder(
 let response = await apiManager.sendMessage(builder: requestBuilder)
 ```
 
-## ChubAI Character Import
+## Character Card and Lore Book Import
 
-Import character cards directly from Chub.ai or CharacterHub.org:
+Use `CharImporter` for character cards and lore books. Character cards support PNG metadata and JSON imports from local data or URLs. Lore books only support JSON imports.
 
 ```swift
 import SwiftLLMSDK
 
 // Initialize the importer
-let chubImporter = ChubImporter(urlSession: URLSession.shared)
+let importer = CharImporter(urlSession: URLSession.shared)
 
-// Import a character card from URL
-let characterURL = URL(string: "https://chub.ai/characters/author/character-name")!
+// Import a character card from a page URL, direct PNG URL, direct JSON URL, or file URL
+let characterURL = URL(string: "https://example.com/characterCard.json")!
 
 do {
-    let result = try await chubImporter.getCardViaURL(characterURL)
-    switch result {
-    case .success(let characterCard):
-        print("Character imported: \(characterCard.data?.name ?? "Unknown")")
-        print("Description: \(characterCard.data?.description ?? "No description")")
-        
-        // Use the character card with your LLM
-        let requestBuilder = RequestBodyBuilder(
-            selectedModel: "openai/gpt-4",
-            messages: [
-                RequestBodyMessages(role: .user, message: "Hello!")
-            ],
-            characterDescription: characterCard.data?.description,
-            characterPersonality: characterCard.data?.personality,
-            characterScenario: characterCard.data?.scenario
-        )
-        
-    case .failure(let error):
-        print("Import failed: \(error)")
-    }
+    let characterCard = try await importer.importCard(from: characterURL)
+    print("Character imported: \(characterCard.data?.name ?? "Unknown")")
+    print("Description: \(characterCard.data?.description ?? "No description")")
+
+    // Use the character card with your LLM
+    let requestBuilder = OpenRouterRequestBuilder(
+        model: "openai/gpt-4",
+        messages: [
+            RequestBodyMessages(role: .user, message: "Hello!")
+        ],
+        characterDescription: characterCard.data?.description,
+        characterPersonality: characterCard.data?.personality,
+        characterScenario: characterCard.data?.scenario
+    )
 } catch {
     print("Import error: \(error)")
 }
+
+// Import a lore book from JSON data or a JSON URL
+do {
+    let loreBookURL = URL(string: "https://example.com/lorebook.json")!
+    let loreBook = try await importer.importLoreBook(from: loreBookURL)
+    print("Lore book entries: \(loreBook.entries?.count ?? 0)")
+} catch {
+    print("Lore book import error: \(error)")
+}
 ```
+
+`ChubImporter` is deprecated and remains available only for compatibility. New code should use `CharImporter`.
 
 ## Advanced Usage
 
@@ -405,9 +432,21 @@ Generic manager for handling API calls to different LLM services.
 - `streamMessage(builder: OpenRouterRequestBuilder) -> AsyncStream<Result<ModelResponse, APIError>>`
 - `streamMessage(builder: ChatCompletionRequestBuilder) -> AsyncStream<Result<ModelResponse, APIError>>`
 - `streamMessage(builder: KoboldRequestBuilder) -> AsyncStream<Result<ModelResponse, APIError>>`
-- `connect() async -> Result<String, APIError>` (provider-specific)
+- `checkConnection() async -> Result<ConnectionCheckResult, APIError>`
+- `connect() async -> Result<String, APIError>` (convenience wrapper over `checkConnection()`)
 - `getAvailableModels() async -> Result<[OpenRouterModel], APIError>` (OpenRouter)
 - `getAvailableModels() async -> Result<[OpenAIModel], APIError>` (OpenAI-compatible)
+
+#### `ConnectionCheckResult`
+
+Connection check details returned by `checkConnection()`.
+
+- `provider: LLMProvider` - Provider that was checked.
+- `verification: ConnectionVerification` - `.chatCompletion` for OpenRouter/OpenAI-compatible probes, or `.serviceMetadata` for KoboldCPP's fast model metadata check.
+- `endpoint: String` - Endpoint used for the check.
+- `model: String?` - Model returned by the provider or selected for the probe.
+- `message: String` - Short success message.
+- `isChatReady: Bool` - `true` only when the check verified the chat-completion endpoint.
 
 #### Request Builders
 
@@ -425,15 +464,19 @@ Compatibility: The legacy `RequestBodyBuilder` remains available but new code sh
 Unified response structure containing:
 
 - `text: String?` - Generated text response
+- `deltaText: String?` - Latest streamed text chunk, when streaming
+- `reasoning: String?` - Accumulated reasoning text, when the provider returns reasoning content
+- `deltaReasoning: String?` - Latest streamed reasoning chunk, when streaming
 - `role: String?` - Response role (usually "assistant")
 - `responseTokens: Int?` - Tokens used in response
 - `promptTokens: Int?` - Tokens used in prompt
 - `error: LLMError?` - Normalized provider or stream error, when a response carries an error
 - `streaming`: Bool? - If the response is currently streaming data
+- `isThinking: Bool` - Indicates the stream is currently emitting reasoning before response text begins
 - `disconnect: Bool` - Indicates a stream should be treated as closed
 - `rawResponse: Codable?` - Original API response when available
 
-Note: Streaming uses `AsyncStream<Result<ModelResponse, APIError>>`. Each success emission contains the accumulated `text` so far. If a provider sends a mid-stream error event, the final emission is a `ModelResponse` with the accumulated text plus `error`.
+Note: Streaming uses `AsyncStream<Result<ModelResponse, APIError>>`. Each success emission contains accumulated `text` and `reasoning` so far, with `deltaText` or `deltaReasoning` set when the current event adds new content. If a provider sends a mid-stream error event, the final emission is a `ModelResponse` with accumulated output plus `error`.
 
 ## Contributing
 

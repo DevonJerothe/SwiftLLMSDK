@@ -77,6 +77,43 @@ public struct OpenRouterAPI: LanguageModelService, OpenRouterBase {
         )
     }
 
+    public func checkConnection() async -> Result<ConnectionCheckResult, APIError> {
+        guard let selectedModel else {
+            return .failure(.invalidService)
+        }
+
+        let builder = OpenRouterRequestBuilder(
+            model: selectedModel,
+            messages: [RequestBodyMessages(role: .user, message: "ping")],
+            maxTokens: 1,
+            stream: false,
+            excludeThinking: nil,
+            reasoningEffort: nil
+        )
+        let request = builder.build()
+
+        let result = await sendRequest(
+            for: ChatCompletionResponse.self,
+            provider: .openRouter,
+            path: "/chat/completions",
+            method: "POST",
+            requestBody: request.toJSON().data(using: .utf8)
+        )
+
+        switch result {
+        case .success(let response):
+            return .success(ConnectionCheckResult(
+                provider: .openRouter,
+                verification: .chatCompletion,
+                endpoint: "/chat/completions",
+                model: response.model ?? selectedModel,
+                message: "Chat completion probe succeeded."
+            ))
+        case .failure(let error):
+            return .failure(error)
+        }
+    }
+
     // TODO: Update this to return the actual Key info. May be useful for monitoring usage ect. 
     public func checkAPIKey() async -> Result<String, APIError> {
         let result = await sendRequest(for: OpenRouterAPIKeyResponse.self, provider: .openRouter, path: "/key", method: "GET")

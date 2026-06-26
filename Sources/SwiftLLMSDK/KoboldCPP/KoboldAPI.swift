@@ -36,6 +36,23 @@ public struct KoboldAPI: LanguageModelService, KoboldAPIBase {
         await getString(endpoint: "/api/v1/model", provider: .kobold)
     }
 
+    public func checkConnection() async -> Result<ConnectionCheckResult, APIError> {
+        let result = await getModel()
+
+        switch result {
+        case .success(let model):
+            return .success(ConnectionCheckResult(
+                provider: .kobold,
+                verification: .serviceMetadata,
+                endpoint: "/api/v1/model",
+                model: model,
+                message: "Model metadata probe succeeded."
+            ))
+        case .failure(let error):
+            return .failure(error)
+        }
+    }
+
     public func countTokens(text: String) async -> Result<Int, APIError> {
         let requestBody = [
             "prompt": text

@@ -345,6 +345,149 @@ import Testing
     #expect(final.disconnect == true)
 }
 
+@Test func openAICompatibleConnectionUsesMinimalChatCompletionProbe() async throws {
+    let session = MockURLProtocol.makeSession(key: "Bearer openai-connect-test") { request in
+        #expect(request.url?.path == "/chat/completions")
+        #expect(request.httpMethod == "POST")
+
+        let bodyData = try #require(requestBodyData(for: request))
+        let json = try #require(JSONSerialization.jsonObject(with: bodyData) as? [String: Any])
+        let messages = try #require(json["messages"] as? [[String: Any]])
+
+        #expect(json["model"] as? String == "gpt-4o-mini")
+        #expect(json["max_tokens"] as? Int == 1)
+        #expect(json["stream"] as? Bool == false)
+        #expect(json["temperature"] == nil)
+        #expect(json["reasoning"] == nil)
+        #expect(messages.count == 1)
+        #expect(messages.first?["role"] as? String == "user")
+        #expect(messages.first?["content"] as? String == "ping")
+
+        let response = try mockResponse(
+            for: request,
+            statusCode: 200,
+            contentType: "application/json"
+        )
+        let data = Data("""
+        {
+          "id": "chatcmpl-connect",
+          "model": "gpt-4o-mini",
+          "choices": [
+            {
+              "index": 0,
+              "message": { "role": "assistant", "content": "p" },
+              "finish_reason": "stop"
+            }
+          ]
+        }
+        """.utf8)
+        return (response, data)
+    }
+
+    let api = OpenAPI(
+        urlSession: session,
+        baseURL: "https://example.com",
+        selectedModel: "gpt-4o-mini",
+        apiKey: "openai-connect-test"
+    )
+    let manager = APIManager(forService: api)
+
+    let result = await manager.checkConnection()
+
+    guard case .success(let check) = result else {
+        Issue.record("Expected successful connection check, got \(result)")
+        return
+    }
+
+    #expect(check.provider == .openAICompatible)
+    #expect(check.verification == .chatCompletion)
+    #expect(check.endpoint == "/chat/completions")
+    #expect(check.model == "gpt-4o-mini")
+    #expect(check.isChatReady)
+}
+
+@Test func openRouterConnectionProbeOmitsReasoningFields() async throws {
+    let session = MockURLProtocol.makeSession(key: "Bearer openrouter-connect-test") { request in
+        #expect(request.url?.path == "/api/v1/chat/completions")
+
+        let bodyData = try #require(requestBodyData(for: request))
+        let json = try #require(JSONSerialization.jsonObject(with: bodyData) as? [String: Any])
+
+        #expect(json["model"] as? String == "openai/gpt-4o-mini")
+        #expect(json["max_tokens"] as? Int == 1)
+        #expect(json["stream"] as? Bool == false)
+        #expect(json["reasoning"] == nil)
+        #expect(json["reasoning_effort"] == nil)
+
+        let response = try mockResponse(
+            for: request,
+            statusCode: 200,
+            contentType: "application/json"
+        )
+        let data = Data("""
+        {
+          "id": "gen-connect",
+          "model": "openai/gpt-4o-mini",
+          "choices": [
+            {
+              "index": 0,
+              "message": { "role": "assistant", "content": "p" },
+              "finish_reason": "stop"
+            }
+          ]
+        }
+        """.utf8)
+        return (response, data)
+    }
+
+    let api = OpenRouterAPI(
+        urlSession: session,
+        selectedModel: "openai/gpt-4o-mini",
+        apiKey: "openrouter-connect-test"
+    )
+    let manager = APIManager(forService: api)
+
+    let result = await manager.connect()
+
+    guard case .success(let model) = result else {
+        Issue.record("Expected successful connect, got \(result)")
+        return
+    }
+
+    #expect(model == "openai/gpt-4o-mini")
+}
+
+@Test func koboldConnectionCheckUsesMetadataEndpoint() async throws {
+    let session = MockURLProtocol.makeSession(key: "http://localhost:5001/api/v1/model") { request in
+        #expect(request.url?.path == "/api/v1/model")
+        #expect(request.httpMethod == "GET")
+        #expect(request.httpBody == nil)
+
+        let response = try mockResponse(
+            for: request,
+            statusCode: 200,
+            contentType: "application/json"
+        )
+        return (response, Data(#"{ "result": "local-model.gguf" }"#.utf8))
+    }
+
+    let api = KoboldAPI(urlSession: session, host: "localhost", port: 5001)
+    let manager = APIManager(forService: api)
+
+    let result = await manager.checkConnection()
+
+    guard case .success(let check) = result else {
+        Issue.record("Expected successful connection check, got \(result)")
+        return
+    }
+
+    #expect(check.provider == .kobold)
+    #expect(check.verification == .serviceMetadata)
+    #expect(check.endpoint == "/api/v1/model")
+    #expect(check.model == "local-model.gguf")
+    #expect(!check.isChatReady)
+}
+
 private func collect(_ stream: AsyncStream<Result<ModelResponse, APIError>>) async -> [Result<ModelResponse, APIError>] {
     var results: [Result<ModelResponse, APIError>] = []
     for await result in stream {
@@ -365,6 +508,37 @@ private func mockResponse(
         httpVersion: nil,
         headerFields: ["Content-Type": contentType]
     ))
+}
+
+private func requestBodyData(for request: URLRequest) -> Data? {
+    if let httpBody = request.httpBody {
+        return httpBody
+    }
+
+    guard let stream = request.httpBodyStream else {
+        return nil
+    }
+
+    stream.open()
+    defer { stream.close() }
+
+    var data = Data()
+    let bufferSize = 1024
+    let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: bufferSize)
+    defer { buffer.deallocate() }
+
+    while stream.hasBytesAvailable {
+        let read = stream.read(buffer, maxLength: bufferSize)
+        if read < 0 {
+            return nil
+        }
+        if read == 0 {
+            break
+        }
+        data.append(buffer, count: read)
+    }
+
+    return data
 }
 
 private final class MockURLProtocol: URLProtocol, @unchecked Sendable {

@@ -234,9 +234,7 @@ public class RequestBodyBuilder {
         }
 
         // build chat messages from our user / character messages
-        let chatMessages = messages.map { message in
-            return ChatCompletionMessage(role: message.role.rawValue, content: message.message)
-        }
+        let chatMessages = messages.map(\.chatCompletionMessage)
 
         // combine system and chat messages
         let openRouterMessages = systemMessages + chatMessages
@@ -291,10 +289,49 @@ public class RequestBodyBuilder {
 public class RequestBodyMessages {
     public var id: UUID = UUID()
     public var role: OpenRouterMessageRole
-    public var message: String
+    public var content: ChatCompletionMessageContent?
+    public var toolCalls: [ToolCall]? = nil
+    public var toolCallID: String? = nil
+    public var name: String? = nil
+
+    /// Backwards-compatible text view of the message content. Assigning this
+    /// property replaces structured content with a plain string.
+    public var message: String {
+        get {
+            guard case .string(let text) = content else { return "" }
+            return text
+        }
+        set {
+            content = .string(newValue)
+        }
+    }
 
     public init(role: OpenRouterMessageRole, message: String) {
         self.role = role
-        self.message = message
+        self.content = .string(message)
+    }
+
+    public init(
+        role: OpenRouterMessageRole,
+        content: ChatCompletionMessageContent? = nil,
+        toolCalls: [ToolCall]? = nil,
+        toolCallID: String? = nil,
+        name: String? = nil
+    ) {
+        self.role = role
+        self.content = content
+        self.toolCalls = toolCalls
+        self.toolCallID = toolCallID
+        self.name = name
+    }
+
+    public var chatCompletionMessage: ChatCompletionMessage {
+        ChatCompletionMessage(
+            role: role.rawValue,
+            content: content,
+            toolCalls: toolCalls,
+            toolCallID: toolCallID,
+            name: name
+        )
     }
 }

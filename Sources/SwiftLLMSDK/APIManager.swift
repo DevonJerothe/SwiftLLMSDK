@@ -63,6 +63,20 @@ extension APIManager where T: OpenRouterBase {
         return api.streamMessage(builder: builder)
     }
 
+    public func streamMessage(
+        builder: OpenRouterRequestBuilder,
+        timeoutInterval: TimeInterval
+    ) -> AsyncStream<Result<ModelResponse, APIError>> {
+        guard var api = api as? OpenRouterAPI else {
+            return AsyncStream { continuation in
+                continuation.yield(.failure(.invalidService))
+                continuation.finish()
+            }
+        }
+        api.timeoutInterval = timeoutInterval
+        return api.streamMessage(builder: builder)
+    }
+
     public func getAvailableModels() async -> Result<[OpenRouterModel], APIError> {
         guard let api = api as? OpenRouterAPI else {
             return .failure(.invalidService)
@@ -116,6 +130,20 @@ extension APIManager where T: OpenAPIBase {
             }
         }
 
+        return api.streamMessage(builder: builder)
+    }
+
+    public func streamMessage(
+        builder: ChatCompletionRequestBuilder,
+        timeoutInterval: TimeInterval
+    ) -> AsyncStream<Result<ModelResponse, APIError>> {
+        guard var api = api as? OpenAPI else {
+            return AsyncStream { continuation in
+                continuation.yield(.failure(.invalidService))
+                continuation.finish()
+            }
+        }
+        api.timeoutInterval = timeoutInterval
         return api.streamMessage(builder: builder)
     }
 
@@ -180,8 +208,41 @@ extension APIManager where T: KoboldAPIBase {
         return api.streamMessage(builder: builder)
     }
 
+    public func streamMessage(builder: ChatCompletionRequestBuilder) -> AsyncStream<
+        Result<ModelResponse, APIError>
+    > {
+        guard let api = api as? KoboldAPI else {
+            return AsyncStream { continuation in
+                continuation.yield(.failure(.invalidService))
+                continuation.finish()
+            }
+        }
+        return api.streamMessage(builder: builder)
+    }
+
+    public func streamMessage(
+        builder: ChatCompletionRequestBuilder,
+        timeoutInterval: TimeInterval
+    ) -> AsyncStream<Result<ModelResponse, APIError>> {
+        guard var api = api as? KoboldAPI else {
+            return AsyncStream { continuation in
+                continuation.yield(.failure(.invalidService))
+                continuation.finish()
+            }
+        }
+        api.timeoutInterval = timeoutInterval
+        return api.streamMessage(builder: builder)
+    }
+
     public func sendMessage(builder: KoboldRequestBuilder) async -> Result<ModelResponse, APIError>
     {
+        guard let api = api as? KoboldAPI else {
+            return .failure(.invalidService)
+        }
+        return await api.sendMessage(builder: builder)
+    }
+
+    public func sendMessage(builder: ChatCompletionRequestBuilder) async -> Result<ModelResponse, APIError> {
         guard let api = api as? KoboldAPI else {
             return .failure(.invalidService)
         }
@@ -202,13 +263,19 @@ public struct ModelResponse: ResponseModel, @unchecked Sendable {
     public var deltaText: String?
     public var reasoning: String?
     public var deltaReasoning: String?
+    /// Accumulated tool calls. During streaming these are snapshots assembled
+    /// by tool-call index; execute them only once `streaming == false`.
+    public var toolCalls: [ToolCall]?
+    /// Raw tool-call fragments received in the current streaming event.
+    public var deltaToolCalls: [ToolCallDelta]?
+    public var finishReason: String?
     public var responseTokens: Int?
     public var promptTokens: Int?
     public var streaming: Bool?
     /// True while the model is still emitting reasoning ("thinking") deltas and
     /// has not yet begun streaming response content. Toggles to false once the
-    /// first content delta arrives (or when the stream finishes). Only applies
-    /// to OpenRouter/OpenAI-compatible APIs until chat completion is added for Kobold
+    /// first content delta arrives (or when the stream finishes). Applies to
+    /// OpenRouter, OpenAI-compatible APIs, and KoboldCPP chat completions.
     public var isThinking: Bool = false
     public var disconnect: Bool = false
     public var rawResponse: Codable?
@@ -220,6 +287,9 @@ public struct ModelResponse: ResponseModel, @unchecked Sendable {
         deltaText: String? = nil,
         reasoning: String? = nil,
         deltaReasoning: String? = nil,
+        toolCalls: [ToolCall]? = nil,
+        deltaToolCalls: [ToolCallDelta]? = nil,
+        finishReason: String? = nil,
         responseTokens: Int? = nil,
         promptTokens: Int? = nil,
         streaming: Bool? = false,
@@ -233,6 +303,9 @@ public struct ModelResponse: ResponseModel, @unchecked Sendable {
         self.deltaText = deltaText
         self.reasoning = reasoning
         self.deltaReasoning = deltaReasoning
+        self.toolCalls = toolCalls
+        self.deltaToolCalls = deltaToolCalls
+        self.finishReason = finishReason
         self.responseTokens = responseTokens
         self.promptTokens = promptTokens
         self.streaming = streaming
@@ -249,6 +322,9 @@ public struct ModelResponse: ResponseModel, @unchecked Sendable {
         deltaText: String? = nil,
         reasoning: String? = nil,
         deltaReasoning: String? = nil,
+        toolCalls: [ToolCall]? = nil,
+        deltaToolCalls: [ToolCallDelta]? = nil,
+        finishReason: String? = nil,
         responseTokens: Int? = nil,
         promptTokens: Int? = nil,
         streaming: Bool? = false,
@@ -261,6 +337,9 @@ public struct ModelResponse: ResponseModel, @unchecked Sendable {
         self.deltaText = deltaText
         self.reasoning = reasoning
         self.deltaReasoning = deltaReasoning
+        self.toolCalls = toolCalls
+        self.deltaToolCalls = deltaToolCalls
+        self.finishReason = finishReason
         self.responseTokens = responseTokens
         self.promptTokens = promptTokens
         self.streaming = streaming

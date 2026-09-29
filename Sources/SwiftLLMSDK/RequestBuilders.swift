@@ -28,6 +28,9 @@ public struct OpenRouterRequestBuilder: EncodableRequestBuilder {
     public var stream: Bool? = nil
     public var reasoningEffort: OpenRouterReasoningEffort?
     public var excludeThinking: Bool? 
+    public var tools: [ToolDefinition]?
+    public var toolChoice: ToolChoice?
+    public var parallelToolCalls: Bool?
 
     // System context
     public var systemPromptTemplate: String?
@@ -51,6 +54,9 @@ public struct OpenRouterRequestBuilder: EncodableRequestBuilder {
         stream: Bool? = nil,
         excludeThinking: Bool? = false,
         reasoningEffort: OpenRouterReasoningEffort? = .medium,
+        tools: [ToolDefinition]? = nil,
+        toolChoice: ToolChoice? = nil,
+        parallelToolCalls: Bool? = nil,
         systemPromptTemplate: String? = nil,
         characterDescription: String? = nil,
         characterPersonality: String? = nil,
@@ -71,6 +77,9 @@ public struct OpenRouterRequestBuilder: EncodableRequestBuilder {
         self.stream = stream
         self.excludeThinking = excludeThinking
         self.reasoningEffort = reasoningEffort
+        self.tools = tools
+        self.toolChoice = toolChoice
+        self.parallelToolCalls = parallelToolCalls
         self.systemPromptTemplate = systemPromptTemplate
         self.characterDescription = characterDescription
         self.characterPersonality = characterPersonality
@@ -92,7 +101,7 @@ public struct OpenRouterRequestBuilder: EncodableRequestBuilder {
             systemMessages.append(ChatCompletionMessage(role: "system", content: characterScenario))
         }
 
-        let chatMessages: [ChatCompletionMessage] = messages.map { ChatCompletionMessage(role: $0.role.rawValue, content: $0.message) }
+        let chatMessages = messages.map(\.chatCompletionMessage)
         let openRouterMessages = systemMessages + chatMessages
 
         return ChatCompletionRequest(
@@ -111,6 +120,9 @@ public struct OpenRouterRequestBuilder: EncodableRequestBuilder {
             frequencyPenalty: frequencyPenalty,
             excludeReasoning: excludeThinking,
             reasoningEffort: reasoningEffort,
+            tools: tools,
+            toolChoice: toolChoice,
+            parallelToolCalls: parallelToolCalls
         )
     }
 }
@@ -226,6 +238,9 @@ public struct ChatCompletionRequestBuilder: EncodableRequestBuilder {
     public var presencePenalty: Double?
     public var stream: Bool? = nil
     public var reasoningEffort: OpenRouterReasoningEffort? 
+    public var tools: [ToolDefinition]?
+    public var toolChoice: ToolChoice?
+    public var parallelToolCalls: Bool?
 
     // System context
     public var systemPromptTemplate: String?
@@ -245,6 +260,9 @@ public struct ChatCompletionRequestBuilder: EncodableRequestBuilder {
         presencePenalty: Double? = nil,
         stream: Bool? = nil,
         reasoningEffort: OpenRouterReasoningEffort? = nil,
+        tools: [ToolDefinition]? = nil,
+        toolChoice: ToolChoice? = nil,
+        parallelToolCalls: Bool? = nil,
         systemPromptTemplate: String? = nil,
         characterDescription: String? = nil,
         characterPersonality: String? = nil,
@@ -260,6 +278,9 @@ public struct ChatCompletionRequestBuilder: EncodableRequestBuilder {
         self.presencePenalty = presencePenalty
         self.stream = stream
         self.reasoningEffort = reasoningEffort
+        self.tools = tools
+        self.toolChoice = toolChoice
+        self.parallelToolCalls = parallelToolCalls
         self.systemPromptTemplate = systemPromptTemplate
         self.characterDescription = characterDescription
         self.characterPersonality = characterPersonality
@@ -281,7 +302,7 @@ public struct ChatCompletionRequestBuilder: EncodableRequestBuilder {
             systemMessages.append(ChatCompletionMessage(role: "system", content: characterScenario))
         }
 
-        let chatMessages: [ChatCompletionMessage] = messages.map { ChatCompletionMessage(role: $0.role.rawValue, content: $0.message) }
+        let chatMessages = messages.map(\.chatCompletionMessage)
         let chatCompletionMessages = systemMessages + chatMessages
 
         return ChatCompletionRequest(
@@ -295,7 +316,10 @@ public struct ChatCompletionRequestBuilder: EncodableRequestBuilder {
             presencePenalty: presencePenalty,
             frequencyPenalty: frequencyPenalty,
             excludeReasoning: nil,
-            reasoningEffort: reasoningEffort
+            reasoningEffort: reasoningEffort,
+            tools: tools,
+            toolChoice: toolChoice,
+            parallelToolCalls: parallelToolCalls
         )
     }
 }

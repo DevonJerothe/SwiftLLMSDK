@@ -24,6 +24,18 @@ public class ChatCompletionRequest: Codable {
     public var seed: Int?
     public var reasoning: OpenRouterReasoning?
     public var reasoningEffort: OpenRouterReasoningEffort?
+    public var tools: [ToolDefinition]?
+    public var toolChoice: ToolChoice?
+    public var parallelToolCalls: Bool?
+
+    public var requiresToolProtocol: Bool {
+        if tools?.isEmpty == false {
+            return true
+        }
+        return messages?.contains {
+            $0.role == "tool" || $0.toolCalls?.isEmpty == false || $0.toolCallID != nil
+        } == true
+    }
 
     public init(
         model: String,
@@ -41,7 +53,10 @@ public class ChatCompletionRequest: Codable {
         frequencyPenalty: Double? = nil,
         seed: Int? = nil,
         excludeReasoning: Bool? = false, 
-        reasoningEffort: OpenRouterReasoningEffort? = .medium
+        reasoningEffort: OpenRouterReasoningEffort? = .medium,
+        tools: [ToolDefinition]? = nil,
+        toolChoice: ToolChoice? = nil,
+        parallelToolCalls: Bool? = nil
     ) {
         self.model = model
         self.messages = messages
@@ -58,6 +73,9 @@ public class ChatCompletionRequest: Codable {
         self.frequencyPenalty = frequencyPenalty
         self.seed = seed
         self.reasoningEffort = reasoningEffort
+        self.tools = tools
+        self.toolChoice = toolChoice
+        self.parallelToolCalls = parallelToolCalls
 
         if reasoningEffort != nil || excludeReasoning != nil {
             self.reasoning = OpenRouterReasoning(
@@ -84,12 +102,23 @@ public struct OpenRouterReasoning: Codable {
     }
 }
 
-public struct ChatCompletionMessage: Codable {
+public struct ChatCompletionMessage: Codable, Sendable {
     public var role: String
-    public var content: ChatCompletionMessageContent
+    public var content: ChatCompletionMessageContent?
+    public var toolCalls: [ToolCall]? = nil
+    public var toolCallID: String? = nil
+    public var name: String? = nil
+
+    enum CodingKeys: String, CodingKey {
+        case role
+        case content
+        case toolCalls = "tool_calls"
+        case toolCallID = "tool_call_id"
+        case name
+    }
 
     public init(role: String, content: String) {
-        self.role = role 
+        self.role = role
         self.content = .string(content)
     }
 
@@ -97,9 +126,23 @@ public struct ChatCompletionMessage: Codable {
         self.role = role
         self.content = .parts(parts)
     }
+
+    public init(
+        role: String,
+        content: ChatCompletionMessageContent? = nil,
+        toolCalls: [ToolCall]? = nil,
+        toolCallID: String? = nil,
+        name: String? = nil
+    ) {
+        self.role = role
+        self.content = content
+        self.toolCalls = toolCalls
+        self.toolCallID = toolCallID
+        self.name = name
+    }
 }
 
-public enum ChatCompletionMessageContent: Codable {
+public enum ChatCompletionMessageContent: Codable, Sendable {
     case string(String)
     case parts([ChatCompletionMessageContentPart])
 
@@ -125,13 +168,13 @@ public enum ChatCompletionMessageContent: Codable {
     }
 }
 
-public struct ChatCompletionMessageContentPart: Codable {
+public struct ChatCompletionMessageContentPart: Codable, Sendable {
     public var type: String
     public var text: String?
     public var imageUrl: ImageURLPart?
 }
 
-public struct ImageURLPart: Codable {
+public struct ImageURLPart: Codable, Sendable {
     public var url: String?
 }
 

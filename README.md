@@ -170,6 +170,57 @@ struct ChatView: View {
 
 NOTE: Streaming with koboldCPP uses the same manager method, simply pass the correct request builder.
 
+### Tool and Function Calling
+
+Function calling uses the modern chat-completion `tools` and `tool_calls` format. The SDK returns requested calls to the app; it does not execute them.
+
+```swift
+let updateCharacter = ToolDefinition(function: FunctionDefinition(
+    name: "update_character",
+    description: "Update fields on the current character draft.",
+    parameters: .object([
+        "type": .string("object"),
+        "properties": .object([
+            "name": .object(["type": .string("string")]),
+            "description": .object(["type": .string("string")])
+        ])
+    ])
+))
+
+let builder = ChatCompletionRequestBuilder(
+    model: "gpt-4o-mini",
+    messages: [RequestBodyMessages(role: .user, message: "Create a space pirate")],
+    tools: [updateCharacter],
+    toolChoice: .auto
+)
+
+let result = await apiManager.sendMessage(builder: builder)
+if case .success(let response) = result {
+    for call in response.toolCalls ?? [] {
+        guard call.function.name == "update_character" else { continue }
+        // Validate and execute call.function.arguments in the app.
+    }
+}
+```
+
+After executing a call, include both the assistant's tool-call message and the corresponding tool result in the next request:
+
+```swift
+let history: [RequestBodyMessages] = [
+    RequestBodyMessages(role: .assistant, content: nil, toolCalls: response.toolCalls),
+    RequestBodyMessages(
+        role: .tool,
+        content: .string(#"{"updated":true}"#),
+        toolCallID: response.toolCalls?.first?.id,
+        name: response.toolCalls?.first?.function.name
+    )
+]
+```
+
+For KoboldCPP, pass `ChatCompletionRequestBuilder` to `APIManager<KoboldAPI>`. The SDK routes it to `/v1/chat/completions`. Existing `KoboldRequestBuilder` requests continue to use KoboldCPP's text-generation endpoints. Tool support still depends on the loaded model and KoboldCPP chat template.
+
+During streaming, `ModelResponse.toolCalls` contains accumulated snapshots and `deltaToolCalls` contains only the current fragments. Execute calls only from the final response where `streaming == false`; function arguments may be split across several events.
+
 ### Basic KoboldCPP Usage
 
 ```swift

@@ -488,6 +488,100 @@ import Testing
     #expect(!check.isChatReady)
 }
 
+@Test func koboldChatBuilderUsesOpenAICompatibleEndpoint() async throws {
+    let endpoint = "http://localhost:5002/v1/chat/completions"
+    let session = MockURLProtocol.makeSession(key: endpoint) { request in
+        #expect(request.url?.path == "/v1/chat/completions")
+
+        let bodyData = try #require(requestBodyData(for: request))
+        let json = try #require(JSONSerialization.jsonObject(with: bodyData) as? [String: Any])
+        #expect((json["tools"] as? [[String: Any]])?.count == 1)
+
+        let response = try mockResponse(
+            for: request,
+            statusCode: 200,
+            contentType: "application/json"
+        )
+        let data = Data("""
+        {
+          "choices": [{
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [{
+                "id": "call_kobold",
+                "type": "function",
+                "function": {"name":"update_character","arguments":"{}"}
+              }]
+            },
+            "finish_reason": "tool_calls"
+          }]
+        }
+        """.utf8)
+        return (response, data)
+    }
+
+    let api = KoboldAPI(urlSession: session, host: "localhost", port: 5002)
+    let builder = ChatCompletionRequestBuilder(
+        model: "koboldcpp",
+        messages: [RequestBodyMessages(role: .user, message: "Create a character")],
+        tools: [ToolDefinition(function: FunctionDefinition(name: "update_character"))]
+    )
+
+    let result = await APIManager(forService: api).sendMessage(builder: builder)
+    guard case .success(let response) = result else {
+        Issue.record("Expected successful Kobold chat response, got \(result)")
+        return
+    }
+
+    #expect(response.finishReason == "tool_calls")
+    #expect(response.toolCalls?.first?.id == "call_kobold")
+}
+
+@Test func koboldChatStreamAccumulatesParallelToolCallFragments() async throws {
+    let endpoint = "http://localhost:5003/v1/chat/completions"
+    let streamBody = """
+    data: {"choices":[{"delta":{"role":"assistant","tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"update_character","arguments":"{\\"na"}},{"index":1,"id":"call_2","type":"function","function":{"name":"add_lore","arguments":"{\\"ti"}}]}}]}
+    data: {"choices":[{"delta":{"tool_calls":[{"index":1,"function":{"arguments":"tle\\":\\"Harbor\\"}"}},{"index":0,"function":{"arguments":"me\\":\\"Mara\\"}"}}]},"finish_reason":"tool_calls"}]}
+    data: [DONE]
+
+    """
+    let session = MockURLProtocol.makeSession(key: endpoint) { request in
+        #expect(request.url?.path == "/v1/chat/completions")
+        let body = try #require(requestBodyData(for: request))
+        let json = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
+        #expect(json["stream"] as? Bool == true)
+
+        let response = try mockResponse(
+            for: request,
+            statusCode: 200,
+            contentType: "text/event-stream"
+        )
+        return (response, Data(streamBody.utf8))
+    }
+
+    let api = KoboldAPI(urlSession: session, host: "localhost", port: 5003)
+    let builder = ChatCompletionRequestBuilder(
+        model: "koboldcpp",
+        messages: [RequestBodyMessages(role: .user, message: "Create a character")],
+        tools: [ToolDefinition(function: FunctionDefinition(name: "update_character"))]
+    )
+
+    let results = await collect(api.streamMessage(builder: builder))
+    #expect(results.count == 3)
+
+    guard case .success(let final) = results.last else {
+        Issue.record("Expected a final streamed response")
+        return
+    }
+    #expect(final.streaming == false)
+    #expect(final.finishReason == "tool_calls")
+    #expect(final.toolCalls?.count == 2)
+    #expect(final.toolCalls?[0].function.arguments == #"{"name":"Mara"}"#)
+    #expect(final.toolCalls?[1].function.arguments == #"{"title":"Harbor"}"#)
+}
+
 private func collect(_ stream: AsyncStream<Result<ModelResponse, APIError>>) async -> [Result<ModelResponse, APIError>] {
     var results: [Result<ModelResponse, APIError>] = []
     for await result in stream {

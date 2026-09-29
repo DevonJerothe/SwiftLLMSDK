@@ -1,5 +1,10 @@
 import Foundation
 
+enum StreamWireFormat: Sendable {
+    case chatCompletions
+    case koboldText
+}
+
 public protocol LanguageModelService {
     // associatedtype ResponseType: ModelResponse
 
@@ -15,7 +20,8 @@ extension LanguageModelService {
         provider: LLMProvider,
         path: String,
         method: String,
-        requestBody: Data? = nil
+        requestBody: Data? = nil,
+        wireFormat: StreamWireFormat? = nil
     ) -> AsyncStream<Result<ModelResponse, APIError>> {
 
         let (stream, continuation) = AsyncStream<Result<ModelResponse, APIError>>.makeStream()
@@ -73,6 +79,8 @@ extension LanguageModelService {
 
                 var accumulatedText = ""
                 var accumulatedReasoning = ""
+                var accumulatedToolCalls: [Int: ToolCallAccumulator] = [:]
+                var latestFinishReason: String?
                 // Tracks whether we are currently in the "thinking" phase. Toggles
                 // to true on the first reasoning delta, and back to false as soon
                 // as response content deltas begin arriving.
@@ -92,12 +100,17 @@ extension LanguageModelService {
                     guard line.hasPrefix("data:") else { continue }
                     let payload = String(line.dropFirst(5)).trimmingCharacters(in: .whitespaces)
 
-                    // We need to handle the different types of responses here.
-                    // OpenRouter indicates the end of the response with [DONE]
+                    // Chat-completion SSE streams indicate completion with [DONE].
                     if payload == "[DONE]" {
+                        let toolCalls = accumulatedToolCalls
+                            .sorted { $0.key < $1.key }
+                            .map(\.value.toolCall)
                         let final = ModelResponse(
                             role: "assistant", text: accumulatedText,
-                            reasoning: accumulatedReasoning, responseTokens: nil, promptTokens: nil,
+                            reasoning: accumulatedReasoning,
+                            toolCalls: toolCalls.isEmpty ? nil : toolCalls,
+                            finishReason: latestFinishReason,
+                            responseTokens: nil, promptTokens: nil,
                             streaming: false, isThinking: false,
                             rawResponse: ChatCompletionResponse())
                         continuation.yield(.success(final))
@@ -115,6 +128,10 @@ extension LanguageModelService {
                             role: "assistant",
                             text: accumulatedText,
                             reasoning: accumulatedReasoning,
+                            toolCalls: accumulatedToolCalls.isEmpty ? nil : accumulatedToolCalls
+                                .sorted { $0.key < $1.key }
+                                .map(\.value.toolCall),
+                            finishReason: latestFinishReason,
                             streaming: false,
                             isThinking: false,
                             disconnect: true,
@@ -130,12 +147,26 @@ extension LanguageModelService {
                         // Handle the different response types based on the model type
                         let decoder = JSONDecoder()
                         do {
-                            if provider == .openRouter || provider == .openAICompatible {
+                            let usesChatCompletions = wireFormat == .chatCompletions
+                                || (wireFormat == nil
+                                    && (provider == .openRouter || provider == .openAICompatible))
+
+                            if usesChatCompletions {
                                 let chunk = try decoder.decode(
                                     ChatCompletionStreamChunk.self, from: jsonData)
-                                let delta = chunk.choices?.first?.delta
+                                let choice = chunk.choices?.first
+                                let delta = choice?.delta
                                 let deltaText = delta?.content ?? ""
                                 let deltaReasoning = delta?.reasoningText ?? ""
+                                let deltaToolCalls = delta?.toolCalls ?? []
+                                latestFinishReason = choice?.finishReason ?? latestFinishReason
+
+                                for toolCallDelta in deltaToolCalls {
+                                    var accumulator = accumulatedToolCalls[toolCallDelta.index]
+                                        ?? ToolCallAccumulator()
+                                    accumulator.append(toolCallDelta)
+                                    accumulatedToolCalls[toolCallDelta.index] = accumulator
+                                }
 
                                 if !deltaReasoning.isEmpty {
                                     accumulatedReasoning += deltaReasoning
@@ -147,13 +178,19 @@ extension LanguageModelService {
                                     isThinking = false
                                 }
 
-                                if !deltaText.isEmpty || !deltaReasoning.isEmpty {
+                                if !deltaText.isEmpty || !deltaReasoning.isEmpty || !deltaToolCalls.isEmpty {
+                                    let toolCalls = accumulatedToolCalls
+                                        .sorted { $0.key < $1.key }
+                                        .map(\.value.toolCall)
                                     let partial = ModelResponse(
                                         role: delta?.role ?? "assistant",
                                         text: accumulatedText,
                                         deltaText: deltaText.isEmpty ? nil : deltaText,
                                         reasoning: accumulatedReasoning,
                                         deltaReasoning: deltaReasoning.isEmpty ? nil : deltaReasoning,
+                                        toolCalls: toolCalls.isEmpty ? nil : toolCalls,
+                                        deltaToolCalls: deltaToolCalls.isEmpty ? nil : deltaToolCalls,
+                                        finishReason: latestFinishReason,
                                         responseTokens: nil,
                                         promptTokens: nil,
                                         streaming: true,
@@ -162,7 +199,7 @@ extension LanguageModelService {
                                     )
                                     continuation.yield(.success(partial))
                                 }
-                            } else if provider == .kobold {
+                            } else if provider == .kobold || wireFormat == .koboldText {
                                 let chunk: KoboldStreamChunk = try decoder.decode(
                                     KoboldStreamChunk.self, from: jsonData)
                                 let deltaText = chunk.token ?? ""
@@ -198,6 +235,10 @@ extension LanguageModelService {
                                 role: "assistant",
                                 text: accumulatedText,
                                 reasoning: accumulatedReasoning,
+                                toolCalls: accumulatedToolCalls.isEmpty ? nil : accumulatedToolCalls
+                                    .sorted { $0.key < $1.key }
+                                    .map(\.value.toolCall),
+                                finishReason: latestFinishReason,
                                 streaming: false,
                                 isThinking: false,
                                 disconnect: true,

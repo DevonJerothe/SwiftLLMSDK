@@ -78,6 +78,7 @@ public class ChatCompletionResponseMessage: Codable {
     public var refusal: String?
     public var reasoning: String?
     public var reasoningContent: String?
+    public var toolCalls: [ToolCall]?
 
     enum CodingKeys: String, CodingKey {
         case role
@@ -85,6 +86,7 @@ public class ChatCompletionResponseMessage: Codable {
         case refusal
         case reasoning
         case reasoningContent = "reasoning_content"
+        case toolCalls = "tool_calls"
     }
 }
 
@@ -108,12 +110,15 @@ extension ChatCompletionResponse {
     }
 
     public func toModelResponse() -> ModelResponse {
-        let message = choices?.first?.message
+        let choice = choices?.first
+        let message = choice?.message
         let reasoning = message?.reasoningContent ?? message?.reasoning
         return ModelResponse(
             role: message?.role ?? "assistant",
             text: message?.content,
             reasoning: reasoning,
+            toolCalls: message?.toolCalls,
+            finishReason: choice?.finishReason,
             responseTokens: usage?.completionTokens,
             promptTokens: usage?.promptTokens,
             rawResponse: self
@@ -152,6 +157,7 @@ public class ChatCompletionStreamDelta: Codable, @unchecked Sendable {
     public var reasoning: String?
     public var reasoningContent: String?
     public var reasoningDetails: [ChatCompletionReasoningDetail]?
+    public var toolCalls: [ToolCallDelta]?
 
     enum CodingKeys: String, CodingKey {
         case role
@@ -159,6 +165,7 @@ public class ChatCompletionStreamDelta: Codable, @unchecked Sendable {
         case reasoning
         case reasoningContent = "reasoning_content"
         case reasoningDetails = "reasoning_details"
+        case toolCalls = "tool_calls"
     }
 }
 

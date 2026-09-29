@@ -30,7 +30,9 @@ import Foundation
         minP: 0.02,
         topA: 0.1,
         topK: 40,
-        repetitionPenalty: 1.1
+        repetitionPenalty: 1.1,
+        tools: [ToolDefinition(function: FunctionDefinition(name: "update_character"))],
+        toolChoice: .auto
     )
 
     let data = try #require(builder.build().toJSON().data(using: .utf8))
@@ -42,4 +44,6 @@ import Foundation
     #expect(json["min_p"] as? Double == 0.02)
     #expect(json["repetition_penalty"] as? Double == 1.1)
     #expect(json["reasoning"] != nil)
+    #expect((json["tools"] as? [[String: Any]])?.count == 1)
+    #expect(json["tool_choice"] as? String == "auto")
 }

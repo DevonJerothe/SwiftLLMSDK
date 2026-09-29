@@ -89,6 +89,22 @@ public struct KoboldAPI: LanguageModelService, KoboldAPIBase {
         )
     }
 
+    /// Uses KoboldCPP's OpenAI-compatible endpoint for structured chat and
+    /// tool-calling requests.
+    public func streamMessage(builder: ChatCompletionRequestBuilder) -> AsyncStream<Result<ModelResponse, APIError>> {
+        var requestBuilder = builder
+        requestBuilder.stream = true
+        let requestModel = requestBuilder.build()
+
+        return sendStreamedRequest(
+            provider: .kobold,
+            path: "/v1/chat/completions",
+            method: "POST",
+            requestBody: requestModel.toJSON().data(using: .utf8),
+            wireFormat: .chatCompletions
+        )
+    }
+
     public func sendMessage(promptModel: RequestBodyBuilder) async -> Result<ModelResponse, APIError> {
         let koboldRequest = promptModel.buildKoboldBody()
         let koboldRequestData = koboldRequest.toJSON().data(using: .utf8)
@@ -114,6 +130,27 @@ public struct KoboldAPI: LanguageModelService, KoboldAPIBase {
             path: "/api/v1/generate",
             method: "POST",
             requestBody: koboldRequestData
+        )
+
+        switch result {
+        case .success(let response):
+            return .success(response.toModelResponse())
+        case .failure(let error):
+            return .failure(error)
+        }
+    }
+
+    /// Uses KoboldCPP's OpenAI-compatible endpoint for structured chat and
+    /// tool-calling requests. Raw prompt requests continue to use
+    /// `KoboldRequestBuilder` and `/api/v1/generate`.
+    public func sendMessage(builder: ChatCompletionRequestBuilder) async -> Result<ModelResponse, APIError> {
+        let request = builder.build()
+        let result = await sendRequest(
+            for: ChatCompletionResponse.self,
+            provider: .kobold,
+            path: "/v1/chat/completions",
+            method: "POST",
+            requestBody: request.toJSON().data(using: .utf8)
         )
 
         switch result {
